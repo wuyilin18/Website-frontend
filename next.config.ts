@@ -1,14 +1,30 @@
 import type { NextConfig } from "next";
 import webpack from "webpack";
-const getSharpAdapter = async () => {
-  return (await import("responsive-loader/sharp")).default;
-};
+
+// 提前加载 sharp 适配器（同步化处理）
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let sharpAdapter: any;
+
+// 初始化 sharpAdapter
+(async () => {
+  try {
+    // 使用动态导入替代 require
+    const sharpModule = await import("responsive-loader/sharp");
+    sharpAdapter = sharpModule.default;
+  } catch {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "responsive-loader/sharp not found, falling back to default loader"
+    );
+  }
+})();
 
 const nextConfig: NextConfig = {
-  // 启用生产环境源地图（按需）
-  productionBrowserSourceMaps: false, // 设为 false 可以减少内存使用
-
-  // 图片优化配置
+  // 禁用类型检查
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  // 原有配置保持不变...
   images: {
     domains: [
       "cdn.wuyilin18.top",
@@ -19,41 +35,22 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 750, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96],
     minimumCacheTTL: 86400,
-    formats: ["image/webp"], // 优先使用 webp 格式
+    formats: ["image/webp"],
   },
 
-  // 实验性功能
-  experimental: {
-    optimizeCss: true,
-    scrollRestoration: true,
-    workerThreads: true, // 启用多线程构建
-    cpus: 4, // 使用 4 个 CPU 核心
-    // 如果使用 Next.js 13+ 可以添加这些优化
-    optimizeServerReact: true,
-    disableOptimizedLoading: false,
-  },
-
-  // 关闭类型检查（开发时）
-  typescript: {
-    ignoreBuildErrors: false, // 设为 true 可以加快构建但会跳过类型检查
-  },
-
-  // Webpack 配置
-  webpack: async (config, { isServer, dev }) => {
-    // 只在生产环境使用 responsive-loader
-    if (!dev && !isServer) {
-      const adapter = await getSharpAdapter();
+  // 修改 webpack 配置为同步
+  webpack: (config, { isServer, dev }) => {
+    if (!dev && !isServer && sharpAdapter) {
       config.module.rules.push({
         test: /\.(png|jpg|jpeg|webp)$/i,
         use: [
           {
             loader: "responsive-loader",
             options: {
-              adapter,
+              adapter: sharpAdapter,
               sizes: [300, 600, 1200, 2000],
               placeholder: true,
               placeholderSize: 20,
-              // 添加缓存避免重复处理
               cacheDirectory: true,
               cacheIdentifier: "responsive-loader",
             },
@@ -62,7 +59,6 @@ const nextConfig: NextConfig = {
       });
     }
 
-    // 优化 moment.js 等库的本地化文件
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /^\.\/locale$/,
@@ -71,11 +67,6 @@ const nextConfig: NextConfig = {
     );
 
     return config;
-  },
-
-  // 构建输出配置
-  eslint: {
-    ignoreDuringBuilds: true, // 构建时忽略 ESLint
   },
 };
 

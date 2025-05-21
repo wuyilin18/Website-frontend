@@ -15,9 +15,7 @@ export function AlgoliaPreloader({
   indexName,
   onReady,
 }: AlgoliaPreloaderProps) {
-  const [status, setStatus] = useState<"loading" | "ready" | "error">(
-    "loading"
-  );
+  const [, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
     // Only run on client

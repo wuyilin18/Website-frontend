@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useId } from "react";
 
 import { motion } from "motion/react";
-import { cn } from "@/utils/cn";
+import { cn } from "@/lib/utils";
 
 export interface ContainerTextFlipProps {
   /** Array of words to cycle through in the animation */
@@ -33,7 +33,7 @@ export function ContainerTextFlip({
   const updateWidthForWord = () => {
     if (textRef.current) {
       // Add some padding to the text width (30px on each side)
-      // @ts-ignore
+      // @ts-expect-error 忽略下一行的类型错误
       const textWidth = textRef.current.scrollWidth + 30;
       setWidth(textWidth);
     }

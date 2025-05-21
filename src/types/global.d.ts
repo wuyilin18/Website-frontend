@@ -13,6 +13,27 @@ export {}; // 确保文件被视为模块
 
 declare global {
   // 可添加其他全局声明
+
+  // Type for Algolia index
+  interface AlgoliaIndex {
+    search: <T>(
+      query: string,
+      options?: Record<string, unknown>
+    ) => Promise<AlgoliaSearchResponse<T>>;
+    getObject: <T>(objectID: string) => Promise<T>;
+  }
+
+  // Type for Algolia search client
+  interface AlgoliaClient {
+    initIndex: (indexName: string) => AlgoliaIndex;
+  }
+
+  // 使用 interface 扩展 Window 类型
+  interface Window {
+    algoliasearch?: (appId: string, apiKey: string) => AlgoliaClient;
+    algoliaIndex?: AlgoliaIndex;
+    myCustomProperty?: unknown;
+  }
 }
 
 // Global type definitions for the application
@@ -27,24 +48,4 @@ interface AlgoliaSearchResponse<T> {
   processingTimeMS?: number;
   query?: string;
   params?: string;
-}
-
-// Type for Algolia index
-interface AlgoliaIndex {
-  search: <T>(
-    query: string,
-    options?: Record<string, unknown>
-  ) => Promise<AlgoliaSearchResponse<T>>;
-  getObject: <T>(objectID: string) => Promise<T>;
-}
-
-// Type for Algolia search client
-interface AlgoliaClient {
-  initIndex: (indexName: string) => AlgoliaIndex;
-}
-
-// Extend Window interface globally
-interface Window {
-  algoliasearch?: (appId: string, apiKey: string) => AlgoliaClient;
-  algoliaIndex?: AlgoliaIndex;
 }

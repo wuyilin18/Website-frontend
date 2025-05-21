@@ -4,11 +4,11 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
-type Tab = {
+interface TabProps {
   title: string;
   value: string;
-  content?: string | React.ReactNode | any;
-};
+  content: React.ReactNode;
+}
 
 export const Tabs = ({
   tabs: propTabs,
@@ -17,14 +17,14 @@ export const Tabs = ({
   tabClassName,
   contentClassName,
 }: {
-  tabs: Tab[];
+  tabs: TabProps[];
   containerClassName?: string;
   activeTabClassName?: string;
   tabClassName?: string;
   contentClassName?: string;
 }) => {
-  const [active, setActive] = useState<Tab>(propTabs[0]);
-  const [tabs, setTabs] = useState<Tab[]>(propTabs);
+  const [active, setActive] = useState<TabProps>(propTabs[0]);
+  const [tabs, setTabs] = useState<TabProps[]>(propTabs);
 
   const moveSelectedTabToTop = (idx: number) => {
     const newTabs = [...propTabs];
@@ -92,11 +92,11 @@ export const FadeInDiv = ({
 }: {
   className?: string;
   key?: string;
-  tabs: Tab[];
-  active: Tab;
+  tabs: TabProps[];
+  active: TabProps;
   hovering?: boolean;
 }) => {
-  const isActive = (tab: Tab) => {
+  const isActive = (tab: TabProps) => {
     return tab.value === tabs[0].value;
   };
   return (
