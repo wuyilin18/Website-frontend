@@ -2,7 +2,7 @@
 
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import type { ThemeProviderProps } from "next-themes";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeNotification } from "./ThemeNotification";
 
@@ -14,10 +14,9 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     undefined
   );
   const [userOverride, setUserOverride] = useState(false);
-  const [isAutoModeActive, setIsAutoModeActive] = useState(false);
 
   // 根据系统时间设置主题
-  const setThemeByTime = () => {
+  const setThemeByTime = useCallback(() => {
     // 如果用户已手动设置主题，则不进行自动切换
     if (userOverride) return;
 
@@ -49,7 +48,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       // 更新主题状态
       setCurrentTheme(currentTheme);
     }
-  };
+  }, [userOverride]);
 
   useEffect(() => {
     setMounted(true);
@@ -64,7 +63,6 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
 
     // 检查自动模式是否启用
     const autoMode = localStorage.getItem("themeAutoMode") === "true";
-    setIsAutoModeActive(autoMode && !hasUserOverride);
 
     // 只有当启用了自动模式且用户没有手动设置主题时，才根据时间自动设置
     if (autoMode && !hasUserOverride) {
@@ -90,12 +88,10 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       if (isAutoMode) {
         // 启用自动模式
         setUserOverride(false);
-        setIsAutoModeActive(true);
         localStorage.setItem("userThemeOverride", "false");
       } else {
         // 标记用户已手动设置了主题
         setUserOverride(true);
-        setIsAutoModeActive(false);
         localStorage.setItem("userThemeOverride", "true");
       }
     };
@@ -105,8 +101,6 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       const autoMode = localStorage.getItem("themeAutoMode") === "true";
       const userOverrideValue =
         localStorage.getItem("userThemeOverride") === "true";
-
-      setIsAutoModeActive(autoMode && !userOverrideValue);
 
       if (autoMode && !userOverrideValue) {
         setUserOverride(false);
@@ -131,7 +125,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       );
       clearInterval(intervalId);
     };
-  }, [isReducedMotion, userOverride]);
+  }, [isReducedMotion, userOverride, setThemeByTime]);
 
   if (!mounted) {
     return (

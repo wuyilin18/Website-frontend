@@ -27,7 +27,6 @@ export function ThemeNavItem({
   const [isReducedMotion, setIsReducedMotion] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
   const [longPressActive, setLongPressActive] = useState(false);
-  const [showThemeNotification, setShowThemeNotification] = useState(false);
   const iconControls = useAnimation();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -152,10 +151,6 @@ export function ThemeNavItem({
         })
       );
     }
-
-    // 显示主题变更通知
-    setShowThemeNotification(true);
-    setTimeout(() => setShowThemeNotification(false), 3000);
   };
 
   // 处理鼠标悬浮状态
