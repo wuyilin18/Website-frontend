@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "./button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,13 +12,34 @@ export function ThemeToggle() {
   const [isHovered, setIsHovered] = useState(false);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
+  const [longPressActive, setLongPressActive] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { theme, setTheme } = useTheme();
 
   // 检查是否在自动模式
   useEffect(() => {
     // 从本地存储获取配置
     const storedAutoMode = localStorage.getItem("themeAutoMode") === "true";
-    setAutoMode(storedAutoMode);
+    const userOverride = localStorage.getItem("userThemeOverride") === "true";
+    setAutoMode(storedAutoMode && !userOverride);
+
+    // 监听自动模式变化
+    const handleAutoModeChange = () => {
+      const autoMode = localStorage.getItem("themeAutoMode") === "true";
+      const userOverride = localStorage.getItem("userThemeOverride") === "true";
+      setAutoMode(autoMode && !userOverride);
+    };
+
+    window.addEventListener(
+      "autoModeChange",
+      handleAutoModeChange as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "autoModeChange",
+        handleAutoModeChange as EventListener
+      );
+    };
   }, []);
 
   // 初始化效果
@@ -52,14 +73,61 @@ export function ThemeToggle() {
       // 触发主题变更事件
       window.dispatchEvent(
         new CustomEvent("themechange", {
-          detail: { theme: newTheme },
+          detail: { theme: newTheme, isAutoMode: true },
+        })
+      );
+    } else {
+      // 标记用户已手动设置主题
+      localStorage.setItem("userThemeOverride", "true");
+
+      // 发送主题变更事件
+      window.dispatchEvent(
+        new CustomEvent("themechange", {
+          detail: { theme },
         })
       );
     }
-  }, [autoMode, setTheme]);
+  }, [autoMode, setTheme, theme]);
+
+  // 处理按下事件 - 开始长按计时
+  const handlePointerDown = useCallback(() => {
+    // 清除任何已存在的长按计时器
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+
+    // 设置新的长按计时器
+    longPressTimerRef.current = setTimeout(() => {
+      setLongPressActive(true);
+      toggleAutoMode();
+    }, 800); // 800ms长按时间触发自动模式切换
+  }, [toggleAutoMode]);
+
+  // 处理释放事件 - 清除长按计时器
+  const handlePointerUp = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  // 清理计时器
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
 
   // 优化的主题切换处理
   const toggleTheme = useCallback(() => {
+    // 如果长按被激活，不执行普通点击切换
+    if (longPressActive) {
+      setLongPressActive(false);
+      return;
+    }
+
     // 只有在非自动模式下才允许手动切换
     if (!autoMode) {
       const newTheme = theme === "dark" ? "light" : "dark";
@@ -79,8 +147,15 @@ export function ThemeToggle() {
       setAutoMode(false);
       localStorage.setItem("themeAutoMode", "false");
       localStorage.setItem("userThemeOverride", "true");
+
+      // 发送主题变更事件
+      window.dispatchEvent(
+        new CustomEvent("themechange", {
+          detail: { theme },
+        })
+      );
     }
-  }, [theme, setTheme, autoMode]);
+  }, [theme, setTheme, autoMode, longPressActive]);
 
   if (!mounted) {
     return (
@@ -110,14 +185,30 @@ export function ThemeToggle() {
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onTouchStart={handlePointerDown}
+          onTouchEnd={handlePointerUp}
           onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          onMouseLeave={() => {
+            setIsHovered(false);
+            handlePointerUp();
+          }}
           className={cn(
             "will-change-transform transition-colors duration-200 p-0 w-7 h-7",
             "rounded-full overflow-hidden",
-            isHovered ? "bg-opacity-20" : "bg-transparent"
+            isHovered ? "bg-opacity-20" : "bg-transparent",
+            "relative" // 添加相对定位以便放置自动模式指示器
           )}
         >
+          {/* 自动模式指示器 */}
+          {autoMode && (
+            <div className="absolute top-0 right-0 w-2 h-2 bg-[#56CFE1] rounded-full flex items-center justify-center animate-pulse z-20">
+              <FiClock className="w-1 h-1 text-white" />
+            </div>
+          )}
+
           <div className="relative w-full h-full overflow-hidden rounded-full">
             <AnimatePresence mode="wait" initial={false}>
               {theme === "dark" ? (
@@ -239,33 +330,11 @@ export function ThemeToggle() {
               )}
             </AnimatePresence>
           </div>
-          <span className="sr-only">Toggle theme</span>
-        </Button>
-      </motion.div>
-
-      {/* 自动模式按钮 */}
-      <motion.div
-        layout
-        transition={{
-          type: "spring",
-          stiffness: 350,
-          damping: 25,
-        }}
-      >
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleAutoMode}
-          className={cn(
-            "will-change-transform transition-colors duration-200 p-0 w-7 h-7",
-            "rounded-full overflow-hidden",
-            autoMode
-              ? "bg-[#56CFE1]/20 text-[#56CFE1]"
-              : "bg-transparent text-gray-600 dark:text-gray-400"
-          )}
-        >
-          <FiClock className="w-4 h-4" />
-          <span className="sr-only">Toggle auto theme mode</span>
+          <span className="sr-only">
+            {autoMode
+              ? "自动主题模式 (长按切换)"
+              : "切换主题 (长按切换自动模式)"}
+          </span>
         </Button>
       </motion.div>
     </div>

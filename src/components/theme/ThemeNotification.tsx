@@ -13,6 +13,11 @@ export function ThemeNotification({ theme }: ThemeNotificationProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
   const [isAutoMode, setIsAutoMode] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState<{
+    title: string;
+    description: string;
+    isAutoSwitch: boolean;
+  } | null>(null);
 
   useEffect(() => {
     setIsReducedMotion(
@@ -29,18 +34,87 @@ export function ThemeNotification({ theme }: ThemeNotificationProps) {
     // 初始检查
     checkAutoMode();
 
+    // 处理主题变更事件
+    const handleThemeChange = (event: CustomEvent) => {
+      const detail = event.detail || {};
+      const newTheme = detail.theme;
+      const isAutoSwitch = !!detail.isAutoMode;
+
+      let title = "";
+      let description = "";
+
+      if (isAutoSwitch) {
+        title = "自动主题";
+        description = "已启用基于系统时间的自动主题切换";
+      } else {
+        title = newTheme === "dark" ? "关灯啦" : "开灯啦";
+        description =
+          newTheme === "dark"
+            ? "当前已成功切换至夜间模式！"
+            : "当前已成功切换至白天模式！";
+
+        // 检查是否处于自动模式
+        const autoMode = localStorage.getItem("themeAutoMode") === "true";
+        const userOverride =
+          localStorage.getItem("userThemeOverride") === "true";
+        if (autoMode && !userOverride) {
+          title = "自动主题";
+          description = "当前正在随系统时间自动切换主题";
+        }
+      }
+
+      setNotificationMessage({
+        title,
+        description,
+        isAutoSwitch,
+      });
+
+      setIsVisible(true);
+
+      // 3秒后隐藏通知
+      setTimeout(() => {
+        setIsVisible(false);
+      }, 3000);
+    };
+
     // 监听storage变化和自动模式变化事件
     window.addEventListener("storage", checkAutoMode);
     window.addEventListener("autoModeChange", checkAutoMode);
+    window.addEventListener("themechange", handleThemeChange as EventListener);
 
     return () => {
       window.removeEventListener("storage", checkAutoMode);
       window.removeEventListener("autoModeChange", checkAutoMode);
+      window.removeEventListener(
+        "themechange",
+        handleThemeChange as EventListener
+      );
     };
   }, []);
 
   useEffect(() => {
-    if (theme) {
+    if (theme && !notificationMessage) {
+      // 仅当没有通过事件设置通知时，根据主题变化自动生成通知
+      let title = "";
+      let description = "";
+
+      if (isAutoMode) {
+        title = "自动主题";
+        description = "已启用基于系统时间的自动主题切换";
+      } else {
+        title = theme === "dark" ? "关灯啦" : "开灯啦";
+        description =
+          theme === "dark"
+            ? "当前已成功切换至夜间模式！"
+            : "当前已成功切换至白天模式！";
+      }
+
+      setNotificationMessage({
+        title,
+        description,
+        isAutoSwitch: isAutoMode,
+      });
+
       setIsVisible(true);
       const timer = setTimeout(() => {
         setIsVisible(false);
@@ -48,22 +122,13 @@ export function ThemeNotification({ theme }: ThemeNotificationProps) {
 
       return () => clearTimeout(timer);
     }
-  }, [theme]);
+  }, [theme, isAutoMode, notificationMessage]);
 
-  // 根据主题和自动模式设置通知文本
-  let notificationText = "";
-  let notificationTitle = "";
-
-  if (isAutoMode) {
-    notificationTitle = "自动主题";
-    notificationText = "已启用基于系统时间的自动主题切换";
-  } else {
-    notificationTitle = theme === "dark" ? "关灯啦" : "开灯啦";
-    notificationText =
-      theme === "dark"
-        ? "当前已成功切换至夜间模式！"
-        : "当前已成功切换至白天模式！";
+  if (!notificationMessage) {
+    return null;
   }
+
+  const { title, description, isAutoSwitch } = notificationMessage;
 
   return (
     <AnimatePresence>
@@ -83,14 +148,14 @@ export function ThemeNotification({ theme }: ThemeNotificationProps) {
           <div
             className={cn(
               "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-              isAutoMode
+              isAutoSwitch
                 ? "bg-blue-900/30 text-blue-400 dark:bg-blue-900/30 dark:text-blue-400"
                 : theme === "dark"
                 ? "bg-green-900/30 text-green-400"
                 : "bg-green-100 text-green-600"
             )}
           >
-            {isAutoMode ? (
+            {isAutoSwitch ? (
               <FiClock className="h-5 w-5" />
             ) : (
               <FiCheck className="h-5 w-5" />
@@ -105,10 +170,10 @@ export function ThemeNotification({ theme }: ThemeNotificationProps) {
                   theme === "dark" ? "text-white" : "text-gray-800"
                 )}
               >
-                {notificationTitle}
+                {title}
               </span>
               <span className="ml-1">
-                {isAutoMode ? (
+                {isAutoSwitch ? (
                   <div className="relative flex items-center justify-center w-5 h-5">
                     {/* Auto Icon */}
                     <motion.div
@@ -254,7 +319,7 @@ export function ThemeNotification({ theme }: ThemeNotificationProps) {
                 theme === "dark" ? "text-gray-300" : "text-gray-600"
               )}
             >
-              {notificationText}
+              {description}
             </p>
           </div>
 

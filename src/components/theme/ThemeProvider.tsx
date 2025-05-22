@@ -14,11 +14,16 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     undefined
   );
   const [userOverride, setUserOverride] = useState(false);
+  const [isAutoModeActive, setIsAutoModeActive] = useState(false);
 
   // 根据系统时间设置主题
   const setThemeByTime = () => {
     // 如果用户已手动设置主题，则不进行自动切换
     if (userOverride) return;
+
+    // 检查自动模式是否启用
+    const autoMode = localStorage.getItem("themeAutoMode") === "true";
+    if (!autoMode) return;
 
     if (typeof window !== "undefined") {
       const currentHour = new Date().getHours();
@@ -26,18 +31,23 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
 
       // 获取document元素来设置主题
       const doc = window.document.documentElement;
+      const currentTheme = isDaytime ? "light" : "dark";
 
       if (isDaytime) {
         // 白天模式
         doc.classList.remove("dark");
         doc.classList.add("light");
-        localStorage.setItem("theme", "light");
       } else {
         // 夜间模式
         doc.classList.remove("light");
         doc.classList.add("dark");
-        localStorage.setItem("theme", "dark");
       }
+
+      // 保存主题设置
+      localStorage.setItem("theme", currentTheme);
+
+      // 更新主题状态
+      setCurrentTheme(currentTheme);
     }
   };
 
@@ -52,8 +62,12 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       localStorage.getItem("userThemeOverride") === "true";
     setUserOverride(hasUserOverride);
 
-    // 只有当用户没有手动设置主题时，才根据时间自动设置
-    if (!hasUserOverride) {
+    // 检查自动模式是否启用
+    const autoMode = localStorage.getItem("themeAutoMode") === "true";
+    setIsAutoModeActive(autoMode && !hasUserOverride);
+
+    // 只有当启用了自动模式且用户没有手动设置主题时，才根据时间自动设置
+    if (autoMode && !hasUserOverride) {
       setThemeByTime();
     }
 
@@ -64,23 +78,38 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
 
     // 监听主题变更事件
     const handleThemeChange = (e: CustomEvent) => {
+      const newTheme = e.detail?.theme;
+      const isAutoMode = !!e.detail?.isAutoMode;
+
       if (!isReducedMotion) {
         setIsChangingTheme(true);
-        setCurrentTheme(e.detail?.theme);
+        setCurrentTheme(newTheme);
         setTimeout(() => setIsChangingTheme(false), 800);
       }
 
-      // 标记用户已手动设置了主题
-      setUserOverride(true);
-      localStorage.setItem("userThemeOverride", "true");
+      if (isAutoMode) {
+        // 启用自动模式
+        setUserOverride(false);
+        setIsAutoModeActive(true);
+        localStorage.setItem("userThemeOverride", "false");
+      } else {
+        // 标记用户已手动设置了主题
+        setUserOverride(true);
+        setIsAutoModeActive(false);
+        localStorage.setItem("userThemeOverride", "true");
+      }
     };
 
     // 监听自动模式切换事件
     const handleAutoModeChange = () => {
       const autoMode = localStorage.getItem("themeAutoMode") === "true";
-      if (autoMode) {
+      const userOverrideValue =
+        localStorage.getItem("userThemeOverride") === "true";
+
+      setIsAutoModeActive(autoMode && !userOverrideValue);
+
+      if (autoMode && !userOverrideValue) {
         setUserOverride(false);
-        localStorage.setItem("userThemeOverride", "false");
         setThemeByTime(); // 立即应用基于时间的主题
       }
     };

@@ -5,9 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FiSearch, FiX } from "react-icons/fi";
 import Link from "next/link";
 
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { ThemeNavItem } from "@/components/theme/ThemeNavItem";
 import { SearchModal } from "@/components/Search/SearchModal";
 
+// 导航项类型定义
 interface NavigationItem {
   id: number;
   icon: React.ElementType;
@@ -28,6 +29,17 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
 }) => {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [windowWidth, setWindowWidth] = useState(0);
+
+  // 初始化窗口宽度
+  useEffect(() => {
+    setWindowWidth(window.innerWidth);
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // 打开搜索modal
   const handleSearchClick = () => {
@@ -412,7 +424,7 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
               {/* 底部区域 */}
               <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex justify-center items-center">
-                  <ThemeToggle />
+                  <ThemeNavItem windowWidth={windowWidth} />
                 </div>
               </div>
             </div>

@@ -26,8 +26,11 @@ export function ThemeNavItem({
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
+  const [longPressActive, setLongPressActive] = useState(false);
+  const [showThemeNotification, setShowThemeNotification] = useState(false);
   const iconControls = useAnimation();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const navItemRef = useRef<HTMLDivElement>(null);
 
   // 初始化
@@ -39,17 +42,35 @@ export function ThemeNavItem({
 
     // 检查是否在自动模式
     const storedAutoMode = localStorage.getItem("themeAutoMode") === "true";
-    setAutoMode(storedAutoMode);
+    const userOverride = localStorage.getItem("userThemeOverride") === "true";
+    setAutoMode(storedAutoMode && !userOverride);
 
     // 监听自动模式变化
     const handleStorageChange = () => {
       const newAutoMode = localStorage.getItem("themeAutoMode") === "true";
-      setAutoMode(newAutoMode);
+      const userOverride = localStorage.getItem("userThemeOverride") === "true";
+      setAutoMode(newAutoMode && !userOverride);
+    };
+
+    // 监听自动模式切换事件
+    const handleAutoModeChange = () => {
+      const autoMode = localStorage.getItem("themeAutoMode") === "true";
+      const userOverride =
+        localStorage.getItem("userThemeOverride") === "false";
+      setAutoMode(autoMode && userOverride !== true);
     };
 
     window.addEventListener("storage", handleStorageChange);
+    window.addEventListener(
+      "autoModeChange",
+      handleAutoModeChange as EventListener
+    );
     return () => {
       window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener(
+        "autoModeChange",
+        handleAutoModeChange as EventListener
+      );
     };
   }, []);
 
@@ -59,11 +80,24 @@ export function ThemeNavItem({
 
   // 切换主题
   const toggleTheme = () => {
+    // 如果长按被激活，不执行普通点击切换
+    if (longPressActive) {
+      setLongPressActive(false);
+      return;
+    }
+
     // 如果是自动模式，切换到手动模式，并保持当前主题
     if (autoMode) {
       localStorage.setItem("themeAutoMode", "false");
       localStorage.setItem("userThemeOverride", "true");
       setAutoMode(false);
+
+      // 触发主题变更事件，显示通知
+      window.dispatchEvent(
+        new CustomEvent("themechange", {
+          detail: { theme },
+        })
+      );
       return;
     }
 
@@ -80,6 +114,48 @@ export function ThemeNavItem({
         detail: { theme: newTheme },
       })
     );
+  };
+
+  // 切换自动模式
+  const toggleAutoMode = () => {
+    const newAutoMode = !autoMode;
+    setAutoMode(newAutoMode);
+    localStorage.setItem("themeAutoMode", String(newAutoMode));
+
+    if (newAutoMode) {
+      // 切换到自动模式
+      localStorage.setItem("userThemeOverride", "false");
+
+      // 根据当前时间设置主题
+      const currentHour = new Date().getHours();
+      const isDaytime = currentHour >= 6 && currentHour < 18;
+      const newTheme = isDaytime ? "light" : "dark";
+      setTheme(newTheme);
+
+      // 触发自动模式变更事件
+      window.dispatchEvent(new Event("autoModeChange"));
+
+      // 触发主题变更事件，显示通知
+      window.dispatchEvent(
+        new CustomEvent("themechange", {
+          detail: { theme: newTheme, isAutoMode: true },
+        })
+      );
+    } else {
+      // 标记用户已手动设置主题
+      localStorage.setItem("userThemeOverride", "true");
+
+      // 触发主题变更事件，显示通知
+      window.dispatchEvent(
+        new CustomEvent("themechange", {
+          detail: { theme },
+        })
+      );
+    }
+
+    // 显示主题变更通知
+    setShowThemeNotification(true);
+    setTimeout(() => setShowThemeNotification(false), 3000);
   };
 
   // 处理鼠标悬浮状态
@@ -110,6 +186,35 @@ export function ThemeNavItem({
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
+    }
+
+    // 清除长按计时器
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    setLongPressActive(false);
+  };
+
+  // 处理按下事件 - 开始长按计时
+  const handlePointerDown = () => {
+    // 清除任何已存在的长按计时器
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+
+    // 设置新的长按计时器
+    longPressTimerRef.current = setTimeout(() => {
+      setLongPressActive(true);
+      toggleAutoMode();
+    }, 800); // 800ms长按时间触发自动模式切换
+  };
+
+  // 处理释放事件 - 清除长按计时器
+  const handlePointerUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
     }
   };
 
@@ -159,6 +264,9 @@ export function ThemeNavItem({
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
     };
   }, []);
 
@@ -173,12 +281,17 @@ export function ThemeNavItem({
         onClick={toggleTheme}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         onTouchStart={() => {
           handleMouseEnter();
           setIsTapped(true);
         }}
         onTouchEnd={handleMouseLeave}
-        aria-label="切换主题"
+        aria-label={
+          autoMode ? "自动主题模式 (长按切换)" : "切换主题 (长按切换自动模式)"
+        }
       >
         {/* 图标容器 */}
         <motion.div
@@ -254,6 +367,34 @@ export function ThemeNavItem({
                           className="w-0.5 h-0.5 bg-white rounded-full absolute"
                           style={{ top: "20%", right: "30%" }}
                         />
+                        <motion.div
+                          animate={{
+                            opacity: [0.5, 1, 0.5],
+                            scale: [0.8, 1, 0.8],
+                          }}
+                          transition={{
+                            duration: 3,
+                            repeat: Infinity,
+                            repeatType: "reverse",
+                            delay: 0.5,
+                          }}
+                          className="w-0.5 h-0.5 bg-white rounded-full absolute"
+                          style={{ top: "40%", right: "20%" }}
+                        />
+                        <motion.div
+                          animate={{
+                            opacity: [0.5, 1, 0.5],
+                            scale: [0.8, 1, 0.8],
+                          }}
+                          transition={{
+                            duration: 2.5,
+                            repeat: Infinity,
+                            repeatType: "reverse",
+                            delay: 1,
+                          }}
+                          className="w-0.5 h-0.5 bg-white rounded-full absolute"
+                          style={{ top: "30%", left: "20%" }}
+                        />
                       </>
                     )}
                   </div>
@@ -277,15 +418,38 @@ export function ThemeNavItem({
                     <motion.div
                       initial={{ y: 6 }}
                       animate={{ y: 0 }}
-                      className="w-3.5 h-3.5 bg-yellow-300 rounded-full shadow-[0_0_10px_rgba(255,204,0,0.8)]"
+                      className="w-4 h-4 bg-yellow-300 rounded-full shadow-[0_0_10px_rgba(255,204,0,0.8)]"
                     />
+                    {/* Clouds */}
+                    {!isReducedMotion && (
+                      <>
+                        <motion.div
+                          animate={{ x: [0, 3, 0] }}
+                          transition={{
+                            duration: 4,
+                            repeat: Infinity,
+                            repeatType: "reverse",
+                          }}
+                          className="absolute w-2.5 h-1.5 bg-white rounded-full left-1 top-2"
+                        />
+                        <motion.div
+                          animate={{ x: [0, -2, 0] }}
+                          transition={{
+                            duration: 5,
+                            repeat: Infinity,
+                            repeatType: "reverse",
+                          }}
+                          className="absolute w-2 h-1 bg-white rounded-full right-1.5 top-1.5"
+                        />
+                      </>
+                    )}
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* 电路背景 */}
+          {/* 新风格：电路背景 */}
           <svg
             width="100%"
             height="100%"
@@ -294,17 +458,37 @@ export function ThemeNavItem({
           >
             <path
               d="M10,20 H15 C17,20 17,15 20,15 H25 C27,15 27,20 30,20"
-              stroke="#9D4EDD"
+              stroke={
+                autoMode ? "#56CFE1" : theme === "dark" ? "#56CFE1" : "#9D4EDD"
+              }
               strokeWidth="0.7"
               fill="none"
+              className={
+                autoMode || theme === "dark" ? "animate-data-flow" : ""
+              }
               style={{ animationDuration: "3s" }}
             />
+            {(autoMode || theme === "dark") && (
+              <circle
+                cx="20"
+                cy="20"
+                r="1.5"
+                fill="#56CFE1"
+                className="animate-led-blink"
+              />
+            )}
+            {/* 波形云线 */}
             <path
               d="M5,25 C10,23 15,27 20,25 C25,23 30,27 35,25"
-              stroke="#9D4EDD"
+              stroke={
+                autoMode ? "#56CFE1" : theme === "dark" ? "#FF9470" : "#9D4EDD"
+              }
               strokeWidth="0.5"
               strokeOpacity="0.5"
               fill="none"
+              className={
+                autoMode || theme === "dark" ? "animate-wave-float" : ""
+              }
             />
           </svg>
         </motion.div>
@@ -313,11 +497,7 @@ export function ThemeNavItem({
       {/* 使用TooltipPortal组件 */}
       <TooltipPortal
         text={
-          autoMode
-            ? "自动切换主题中"
-            : theme === "dark"
-            ? "切换到亮色主题"
-            : "切换到暗色主题"
+          autoMode ? "自动主题模式 (长按切换)" : "切换主题 (长按切换自动模式)"
         }
         anchorRect={anchorRect}
         isVisible={showTooltip}
