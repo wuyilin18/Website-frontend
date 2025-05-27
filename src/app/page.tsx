@@ -541,7 +541,7 @@ export default function Home() {
                     与技术思考
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 border-l-2 border-[#56CFE1] pl-2">
-                    前端、后端、架构、AI
+                    前端、后端、嵌入式、AI
                   </p>
 
                   <div className="flex flex-col gap-2 mt-6">

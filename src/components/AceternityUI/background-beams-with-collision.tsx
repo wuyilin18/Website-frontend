@@ -114,8 +114,7 @@ const CollisionMechanism = React.forwardRef<
       repeatDelay?: number;
     };
   }
->(({ parentRef, containerRef, beamOptions = {} }) => {
-  const beamRef = useRef<HTMLDivElement>(null);
+>(({ parentRef, containerRef, beamOptions = {} }, ref) => {
   const [collision, setCollision] = useState<{
     detected: boolean;
     coordinates: { x: number; y: number } | null;
@@ -129,12 +128,14 @@ const CollisionMechanism = React.forwardRef<
   useEffect(() => {
     const checkCollision = () => {
       if (
-        beamRef.current &&
+        ref &&
+        "current" in ref &&
+        ref.current &&
         containerRef.current &&
         parentRef.current &&
         !cycleCollisionDetected
       ) {
-        const beamRect = beamRef.current.getBoundingClientRect();
+        const beamRect = ref.current.getBoundingClientRect();
         const containerRect = containerRef.current.getBoundingClientRect();
         const parentRect = parentRef.current.getBoundingClientRect();
 
@@ -158,7 +159,7 @@ const CollisionMechanism = React.forwardRef<
     const animationInterval = setInterval(checkCollision, 50);
 
     return () => clearInterval(animationInterval);
-  }, [cycleCollisionDetected, containerRef, parentRef]);
+  }, [cycleCollisionDetected, containerRef, parentRef, ref]);
 
   useEffect(() => {
     if (collision.detected && collision.coordinates) {
@@ -177,7 +178,7 @@ const CollisionMechanism = React.forwardRef<
     <>
       <motion.div
         key={beamKey}
-        ref={beamRef}
+        ref={ref}
         animate="animate"
         initial={{
           translateY: beamOptions.initialY || "-200px",

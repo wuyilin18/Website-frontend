@@ -2010,12 +2010,12 @@ export default function AboutPage() {
                           <div className="font-bold pl-2 pt-1">
                             目前主域{" "}
                             <a
-                              href="https://www.wuyilin18"
+                              href="https://www.wuyilin18.top"
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-[#56CFE1] hover:underline"
                             >
-                              www.wuyilin18
+                              www.wuyilin18.top
                             </a>{" "}
                             已劫持分流至缤纷云，在国内速度非常快{" "}
                             <span className="text-[#56CFE1]">
@@ -2045,7 +2045,7 @@ export default function AboutPage() {
                           </div>
                           <div className="font-bold pl-2 pt-1">
                             图床：
-                            <AuroraText>PicGo</AuroraText>
+                            <AuroraText>PicGo+去不图床</AuroraText>
                           </div>
                           <div className="font-bold pl-2 pt-1">
                             CDN：
@@ -2214,7 +2214,7 @@ export default function AboutPage() {
                         name: "Tailwind CSS",
                         designation: "CSS框架",
                         image:
-                          "https://yt3.googleusercontent.com/TVrtuFV8jLoxE0XHSugI5OWHq-CJ4Y2lLNYR5Eck1g1_sdYN0icV4ZXhkucqDwc98ge-kro5=s160-c-k-c0x00ffffff-no-rj",
+                          "https://cdn.wuyilin18.top/img/tailwindCSSjpg.jpg",
                         link: "https://tailwindcss.com/",
                       },
                       {

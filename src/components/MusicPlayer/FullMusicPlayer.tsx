@@ -39,45 +39,40 @@ const playlist: Song[] = [
     id: 1,
     title: "不凡",
     artist: "王铮亮",
-    cover:
-      "https://p1.music.126.net/lvfb_64QYmbib7ccHgDNJA==/109951165165604312.jpg",
-    url: "http://music.163.com/song/media/outer/url?id=1465288702.mp3",
+    cover: "https://cdn.wuyilin18.top/img/%E4%B8%8D%E5%87%A1.jpg",
+    url: "https://cdn.wuyilin18.top/img/%E4%B8%8D%E5%87%A1.m4a",
     duration: 211, // 3:31
   },
   {
     id: 2,
     title: "知我",
     artist: "国风堂,哦漏",
-    cover:
-      "http://p1.music.126.net/_etyUh1ofScyTMFArsJXWg==/109951164415301539.jpg",
-    url: "http://music.163.com/song/media/outer/url?id=1394167216.mp3",
+    cover: "https://cdn.wuyilin18.top/img/%E7%9F%A5%E6%88%91.jpg",
+    url: "https://cdn.wuyilin18.top/img/%E7%9F%A5%E6%88%91.mp3",
     duration: 277,
   },
   {
     id: 3,
     title: "问星",
     artist: "Mr.mo",
-    cover:
-      "https://y.gtimg.cn/music/photo_new/T002R300x300M000002Uda3M4BMXDu.jpg",
-    url: "http://ws.stream.qqmusic.qq.com/C4000033pgzG1IvwnY.m4a?guid=541863622&vkey=694F128EC66BB43F5B434520F53BFE490105BC4830C36E460B9A5AEF303A73A1282043DDB94E51E06E92D4E85430A7389BA10F8980F2019D__v21e2a1873&uin=&fromtag=120032",
+    cover: "https://cdn.wuyilin18.top/img/%E9%97%AE%E6%98%9F.webp",
+    url: "https://cdn.wuyilin18.top/img/%E9%97%AE%E6%98%9F.m4a",
     duration: 225,
   },
   {
     id: 4,
     title: "Let It Go",
     artist: "Idina Menzel",
-    cover:
-      "https://y.gtimg.cn/music/photo_new/T002R300x300M000000nmCPL1H8bES.jpg",
-    url: "http://ws.stream.qqmusic.qq.com/C400000Xmkit1Zsiq8.m4a?guid=817788325&vkey=AA49A201B2F27DD4DF625234400508487BA944FAA2A0A19505D3F6C5051B3A7E9F4E49A9C61266B962979AB6F6580B1C317531EF884865AE__v2b9ab84e&uin=&fromtag=120032",
+    cover: "https://cdn.wuyilin18.top/img/Let_It_Go.jpg",
+    url: "https://cdn.wuyilin18.top/img/Let%20It%20Go.m4a",
     duration: 224, // 3:44
   },
   {
     id: 5,
     title: "Show Yourself",
     artist: "Idina Menzel & Evan Rachel Wood",
-    cover:
-      "http://p1.music.126.net/JuDGtyz4G5ia41YBNpF7JQ==/109951169060932110.jpg",
-    url: "http://music.163.com/song/media/outer/url?id=1403858544.mp3",
+    cover: "https://cdn.wuyilin18.top/img/ShowYourself.jpg",
+    url: "https://cdn.wuyilin18.top/img/Show%20Yourself.m4a",
     duration: 260, // 4:20
   },
   {
@@ -86,16 +81,15 @@ const playlist: Song[] = [
     artist: "SawanoHiroyuki[nZk] & XAI",
     cover:
       "http://p1.music.126.net/-HQJxPCvUPUYwjFgh_MulQ==/109951169249504499.jpg",
-    url: "http://music.163.com/song/media/outer/url?id=2629027034.mp3",
+    url: "https://cdn.wuyilin18.top/img/DARK%20ARIA%20LV2.mp3",
     duration: 141, // 2:21
   },
   {
     id: 7,
     title: "SHADOWBORN",
     artist: "澤野弘之 & Benjamin & mpi",
-    cover:
-      "http://p1.music.126.net/JnrAm-ESo_b9kANYA9VV0w==/109951170355469751.jpg",
-    url: "http://music.163.com/song/media/outer/url?id=2663598795.mp3",
+    cover: "https://cdn.wuyilin18.top/img/SHADOWBORN.jpg",
+    url: "https://cdn.wuyilin18.top/img/SHADOWBORN.mp3",
     duration: 191, // 3:11
   },
 ];
@@ -118,7 +112,18 @@ export const FullMusicPlayer: React.FC = () => {
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play().catch((err) => console.error("播放失败:", err));
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          if (error.name === "AbortError") {
+            console.info(
+              "Play request in togglePlay was aborted by a subsequent action (e.g., pause). This is usually normal."
+            );
+          } else {
+            console.error("播放失败 (togglePlay):", error);
+          }
+        });
+      }
     }
   };
 
@@ -250,7 +255,18 @@ export const FullMusicPlayer: React.FC = () => {
 
     audioRef.current.load();
     if (isPlaying) {
-      audioRef.current.play().catch((err) => console.error("播放失败:", err));
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          if (error.name === "AbortError") {
+            console.info(
+              "Play request after song change was aborted. This is usually normal."
+            );
+          } else {
+            console.error("播放失败 (song change):", error);
+          }
+        });
+      }
     }
   }, [currentSong]);
 
@@ -260,9 +276,18 @@ export const FullMusicPlayer: React.FC = () => {
       // 单曲循环模式：重新播放当前歌曲
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
-        audioRef.current
-          .play()
-          .catch((err) => console.error("重新播放失败:", err));
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((error) => {
+            if (error.name === "AbortError") {
+              console.info(
+                "Play request in REPEAT_ONE was aborted. This is usually normal."
+              );
+            } else {
+              console.error("重新播放失败 (REPEAT_ONE):", error);
+            }
+          });
+        }
       }
     } else if (playMode === PlayMode.PLAY_ONCE) {
       // 单曲播放模式：播放结束后不做任何操作
@@ -276,9 +301,18 @@ export const FullMusicPlayer: React.FC = () => {
       if (playMode === PlayMode.LIST_LOOP && nextIndex === 0) {
         setTimeout(() => {
           if (audioRef.current) {
-            audioRef.current
-              .play()
-              .catch((err) => console.error("自动播放失败:", err));
+            const playPromise = audioRef.current.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((error) => {
+                if (error.name === "AbortError") {
+                  console.info(
+                    "Play request in LIST_LOOP (end of list) was aborted. This is usually normal."
+                  );
+                } else {
+                  console.error("自动播放失败 (LIST_LOOP):", error);
+                }
+              });
+            }
           }
         }, 100);
       }
