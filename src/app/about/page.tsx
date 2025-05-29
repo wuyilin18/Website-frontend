@@ -2032,6 +2032,19 @@ export default function AboutPage() {
                             源码仓库：<AuroraText>Github</AuroraText>
                           </div>
                           <div className="font-bold pl-2 pt-1">
+                            前端：
+                            <AuroraText>
+                              Next.js + Tailwind CSS + TypeScript
+                            </AuroraText>
+                          </div>
+                          <div className="font-bold pl-2 pt-1">
+                            后端：
+                            <AuroraText>Node.js + Strapi + MongoDB</AuroraText>
+                          </div>
+                          <div className="font-bold pl-2 pt-1">
+                            数据库：<AuroraText>MongoDB</AuroraText>
+                          </div>
+                          <div className="font-bold pl-2 pt-1">
                             托管与部署：本网站采用多线部署，包括
                             <AuroraText>
                               Vercel + Netlify + Cloudflare + Zeabur
