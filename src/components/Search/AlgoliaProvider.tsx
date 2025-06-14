@@ -21,9 +21,9 @@ type WindowWithAlgolia = typeof window & {
 
 export function AlgoliaProvider({ children }: AlgoliaProviderProps) {
   // Algolia credentials
-  const appId = "RUZHGLUF3V";
-  const apiKey = "378c7137eca8f2b7a6625599c691fa2f";
-  const indexName = "blog_posts";
+  const appId = "4KSBT528TD";
+  const apiKey = "4c5827731a6ad8b7bc3063c61916c372";
+  const indexName = "development_blog_posts";
 
   // Add debug logging to help diagnose issues
   useEffect(() => {

@@ -2,6 +2,21 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from "recharts";
+import { getCategories } from "@/lib/strapi";
+
+// 颜色和图标配置
+const COLOR_PALETTE = [
+  ["#2A9D8F", "#43B88C"],
+  ["#43AA8B", "#5EBC93"],
+  ["#90BE6D", "#B0D170"],
+  ["#9CC47E", "#B8D686"],
+  ["#A7CC8E", "#C2DBA0"],
+  ["#C2DBA0", "#D5E5B6"],
+  ["#F4A261", "#E76F51"],
+  ["#E9C46A", "#F4A261"],
+  ["#264653", "#2A9D8F"],
+];
+const ICONS = ["🌐", "💾", "🔍", "🎵", "📚", "🎬", "🖌️", "📝", "📊"];
 
 interface CategoryData {
   name: string;
@@ -15,6 +30,8 @@ interface CategoryData {
 }
 
 const Categories: React.FC = () => {
+  // 动画和交互相关 state
+  const [categories, setCategories] = useState<CategoryData[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [visibleCategories, setVisibleCategories] = useState<string[]>([]);
@@ -24,80 +41,68 @@ const Categories: React.FC = () => {
   const chartRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 实际分类数据 - 使用渐变色
-  const categories: CategoryData[] = [
-    {
-      name: "web开发",
-      value: 5,
-      count: 5,
-      color: "#2A9D8F",
-      gradientStart: "#2A9D8F",
-      gradientEnd: "#43B88C",
-      percentage: "33.33%",
-      icon: "🌐",
-    },
-    {
-      name: "嵌入式学习",
-      value: 4,
-      count: 4,
-      color: "#43AA8B",
-      gradientStart: "#43AA8B",
-      gradientEnd: "#5EBC93",
-      percentage: "22.22%",
-      icon: "💾",
-    },
-    {
-      name: "算法",
-      value: 3,
-      count: 3,
-      color: "#90BE6D",
-      gradientStart: "#90BE6D",
-      gradientEnd: "#B0D170",
-      percentage: "16.67%",
-      icon: "🔍",
-    },
-    {
-      name: "音乐",
-      value: 3,
-      count: 3,
-      color: "#9CC47E",
-      gradientStart: "#9CC47E",
-      gradientEnd: "#B8D686",
-      percentage: "16.67%",
-      icon: "🎵",
-    },
-    {
-      name: "平面设计",
-      value: 1,
-      count: 1,
-      color: "#A7CC8E",
-      gradientStart: "#A7CC8E",
-      gradientEnd: "#C2DBA0",
-      percentage: "5.56%",
-      icon: "📚",
-    },
-    {
-      name: "漫画",
-      value: 1,
-      count: 1,
-      color: "#C2DBA0",
-      gradientStart: "#C2DBA0",
-      gradientEnd: "#D5E5B6",
-      percentage: "5.56%",
-      icon: "📚",
-    },
-    {
-      name: "动漫",
-      value: 1,
-      count: 1,
-      color: "#C2DBA0",
-      gradientStart: "#C2DBA0",
-      gradientEnd: "#D5E5B6",
-      percentage: "5.56%",
-      icon: "🎬",
-    },
-  ];
+  // 1. 动态获取分类数据
+  useEffect(() => {
+    async function fetchCategories() {
+      // 明确类型
+      type RawCategory = {
+        name?: string;
+        attributes?: { name?: string; posts?: { data?: unknown[] } };
+        posts?: unknown[];
+      };
 
+      const categoriesData = await getCategories();
+      const rawList: { name: string; count: number }[] =
+        (categoriesData?.data || []).map((cat: RawCategory) => {
+          const name = cat.name || cat.attributes?.name || "未命名";
+          const count = Array.isArray(cat.posts)
+            ? cat.posts.length
+            : cat.attributes?.posts?.data?.length || 0;
+          return { name, count };
+        }) || [];
+
+      // 计算总数和百分比
+      const total =
+        rawList.reduce(
+          (sum: number, c: { count: number }) => sum + c.count,
+          0
+        ) || 1;
+      const list: CategoryData[] = rawList.map((cat, idx) => {
+        const [color, gradientEnd] = COLOR_PALETTE[idx % COLOR_PALETTE.length];
+        return {
+          name: cat.name,
+          value: cat.count,
+          count: cat.count,
+          color,
+          gradientStart: color,
+          gradientEnd,
+          percentage: ((cat.count / total) * 100).toFixed(2) + "%",
+          icon: ICONS[idx % ICONS.length],
+        };
+      });
+      setCategories(list);
+      setVisibleCategories(list.map((cat) => cat.name));
+    }
+    fetchCategories();
+
+    // 启动进场动画
+    setTimeout(() => setAnimate(true), 300);
+
+    // 启动轮播高亮
+    intervalRef.current = setInterval(() => {
+      if (!hoveredCategory && categories.length > 0) {
+        setActiveIndex((prev) => {
+          if (prev === null) return 0;
+          return (prev + 1) % categories.length;
+        });
+      }
+    }, 3000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+    // eslint-disable-next-line
+  }, [hoveredCategory, categories.length]);
   // 为每个分类创建渐变色定义
   const renderGradients = () => {
     return categories.map((category, index) => (
@@ -823,7 +828,6 @@ const Categories: React.FC = () => {
       </div>
     );
   };
-
   return (
     <div className="min-h-screen w-full pt-28 md:pt-32 pb-20 px-4 bg-gradient-to-b from-[#f5f7fa] to-[#f7f9f7] dark:from-[#2a2c31] dark:to-[#232528] transition-colors duration-500">
       <style
@@ -1802,7 +1806,10 @@ const Categories: React.FC = () => {
             {/* 中央文字 - 水墨风格 */}
             <div
               className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center opacity-0 animate-rotate-in"
-              style={{ animationDelay: "0.7s", animationFillMode: "forwards" }}
+              style={{
+                animationDelay: "0.7s",
+                animationFillMode: "forwards",
+              }}
             >
               <div className="relative w-32 h-32 flex items-center justify-center">
                 {/* 电路板元素背景 */}
@@ -2362,6 +2369,14 @@ const Categories: React.FC = () => {
       </div>
     </div>
   );
+  // ...其余 PieChart 渲染、动画、交互逻辑与你的模板完全一致...
+
+  // 下面只需将 categories 的静态数组替换为上面动态获取的 categories state
+  // 其它代码（如 renderGradients、renderActiveShape、CategoryCard、toggleCategoryVisibility、PieChart 渲染等）全部照搬你的模板即可
+
+  // ...（此处省略模板代码，见你上一条消息）...
+
+  // 只需把 categories 的静态数组换成上面 useState 的 categories 即可
 };
 
 export default Categories;

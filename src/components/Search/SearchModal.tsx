@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 interface AlgoliaHit {
   objectID: string;
   title?: string;
-  description?: string;
+  Summary?: string;
   imageUrl?: string;
   [key: string]: unknown;
 }
@@ -370,22 +370,21 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           attributesToRetrieve: [
             "objectID",
             "title",
-            "description",
+            "summary", // 小写
+            "slug", // 小写
             "content",
             "imageUrl",
           ],
-          attributesToHighlight: ["title", "description", "content"],
+          attributesToHighlight: ["title", "summary", "content", "slug"],
         });
 
         // Format results
         const formattedResults: SearchResultItem[] = hits.map((hit) => ({
           objectID: hit.objectID,
           title: hit.title || "No title",
-          excerpt: (hit.description ||
-            hit.content ||
-            "No description available") as string,
-          slug: `blog/${hit.objectID}`,
-          imageUrl: hit.imageUrl as string | undefined,
+          summary: hit.summary || hit.Summary || "摘要不可用", // 兼容大小写
+          Slug: `${hit.slug || hit.Slug || hit.objectID}`,
+          imageUrl: hit.imageUrl || hit.coverImage || undefined,
         }));
 
         setSearchResults(formattedResults);
@@ -398,8 +397,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           {
             objectID: "mock-1",
             title: `开发环境搜索示例 - "${query}"`,
-            excerpt: `这是一个开发环境的搜索结果示例，当前搜索词: "${query}"。Algolia搜索服务未连接，请检查配置。`,
-            slug: "blog/development",
+            summary: `这是一个开发环境的搜索结果示例，当前搜索词: "${query}"。Algolia搜索服务未连接，请检查配置。`,
+            Slug: "blog/development",
           },
         ];
 
@@ -413,8 +412,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
         {
           objectID: "error",
           title: "搜索出错",
-          excerpt: "搜索过程中发生错误，请稍后再试。",
-          slug: "#",
+          summary: "搜索过程中发生错误，请稍后再试。",
+          Slug: "#",
         },
       ]);
     } finally {
@@ -816,18 +815,18 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                             <div className="flex-shrink-0 w-2 h-2 rounded-full bg-teal-500 mt-2"></div>
                             <div className="flex-1">
                               <a
-                                href={`/${result.slug}`}
+                                href={`${result.Slug}`}
                                 className="block"
                                 onClick={onClose}
                               >
                                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">
                                   {result.title}
                                 </h3>
-                                {result.excerpt && (
+                                {result.summary && (
                                   <p
                                     className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line"
                                     dangerouslySetInnerHTML={{
-                                      __html: result.excerpt,
+                                      __html: result.summary,
                                     }}
                                   />
                                 )}

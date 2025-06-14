@@ -2,53 +2,44 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { getTags } from "@/lib/strapi";
 
 const Tags: React.FC = () => {
   const [animate, setAnimate] = useState(false);
   const [hoveredTag, setHoveredTag] = useState<string | null>(null);
   const [visibleTags, setVisibleTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<{ name: string; count: number }[]>([]);
 
-  // 标签数据，包含名称和数量
-  const tags = [
-    { name: "教程", count: 376 },
-    { name: "设计", count: 265 },
-    { name: "开发", count: 232 },
-    { name: "干货", count: 172 },
-    { name: "硬件", count: 10 },
-    { name: "51单片机", count: 10 },
-    { name: "STM32", count: 10 },
-    { name: "ESP32", count: 10 },
-    { name: "软件", count: 106 },
-    { name: "网页前端", count: 61 },
-    { name: "后端", count: 11 },
-    { name: "Hexo", count: 54 },
-    { name: "Photoshop", count: 27 },
-    { name: "产品", count: 16 },
-    { name: "日常", count: 102 },
-    { name: "必看", count: 70 },
-    { name: "视频", count: 23 },
-    { name: "音乐", count: 6 },
-    { name: "漫画", count: 3 },
-    { name: "动漫", count: 5 },
-    { name: "周年记", count: 5 },
-    { name: "电子书", count: 2 },
-    { name: "壁纸", count: 1 },
-  ];
-
-  // 计算标签权重 - 用于字体大小
-  const maxCount = Math.max(...tags.map((tag) => tag.count));
-  const minCount = Math.min(...tags.map((tag) => tag.count));
-  const range = maxCount - minCount;
-
-  // 初始化所有标签为可见 + 启动动画
+  // 获取标签数据
   useEffect(() => {
-    setVisibleTags(tags.map((tag) => tag.name));
+    async function fetchTags() {
+      const tagsData = await getTags();
+      // 兼容扁平和 attributes 结构
+      const tagList =
+        (tagsData?.data || []).map((tag: any) => {
+          const name = tag.name || tag.attributes?.name || "未命名";
+          const count = Array.isArray(tag.posts)
+            ? tag.posts.length
+            : tag.attributes?.posts?.data?.length || 0;
+          return { name, count };
+        }) || [];
+      setTags(tagList);
+      setVisibleTags(tagList.map((tag) => tag.name));
+    }
+    fetchTags();
 
     // 启动进场动画
     setTimeout(() => {
       setAnimate(true);
     }, 300);
   }, []);
+
+  // 计算标签权重 - 用于字体大小
+  const maxCount =
+    tags.length > 0 ? Math.max(...tags.map((tag) => tag.count)) : 1;
+  const minCount =
+    tags.length > 0 ? Math.min(...tags.map((tag) => tag.count)) : 0;
+  const range = maxCount - minCount || 1;
 
   return (
     <div className="min-h-screen w-full pt-28 md:pt-32 pb-20 px-4 bg-gradient-to-b from-[#f5f7fa] to-[#f7f9f7] dark:from-[#2a2c31] dark:to-[#232528] transition-colors duration-500">
@@ -1073,7 +1064,7 @@ const Tags: React.FC = () => {
               );
 
               // 硅原与云端色彩混合
-              const isGreen = index % 3 === 0; // 每三个标签一个绿色调（云端竹笛色）
+              const isGreen = index % 3 === 0; // 每三个标签一个绿色调
 
               // 计算是否为活跃标签
               const isActive = hoveredTag === tag.name;
@@ -1081,7 +1072,7 @@ const Tags: React.FC = () => {
 
               return (
                 <Link
-                  href={`/tags/${tag.name.toLowerCase()}`}
+                  href={`/tags/${encodeURIComponent(tag.name)}`}
                   key={tag.name}
                   className="tag-appear"
                   style={

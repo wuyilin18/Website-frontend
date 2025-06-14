@@ -1,162 +1,176 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Timeline } from "@/components/AceternityUI/timeline";
+import { getPosts } from "@/lib/strapi";
+import Link from "next/link";
+import Image from "next/image";
 
 export default function Archives() {
   const [animate, setAnimate] = useState(false);
+  const [timelineData, setTimelineData] = useState<any[]>([]);
 
-  // Initialize animation on component mount
   useEffect(() => {
-    // Start entrance animation after a short delay
-    setTimeout(() => {
-      setAnimate(true);
-    }, 300);
+    setTimeout(() => setAnimate(true), 300);
+
+    // 获取文章数据
+    async function fetchData() {
+      const postsData = await getPosts({
+        fields: ["Title", "Slug", "PublishDate", "Summary"],
+        populate: "*", // 先获取所有字段来查看结构
+        sort: ["PublishDate:desc"],
+      });
+
+      // 调试输出
+      console.log("Posts data:", postsData);
+      if (postsData?.data?.[0]) {
+        console.log("First post structure:", postsData.data[0]);
+        console.log("First post attributes:", postsData.data[0].attributes);
+      }
+
+      // 处理数据，按年份分组
+      const posts = (postsData?.data || []).map((post: any) => {
+        const attr = post.attributes || post;
+
+        // 尝试多种可能的封面图字段路径
+        let coverImage = null;
+
+        // 尝试不同的字段名称和路径
+        const possiblePaths = [
+          attr.CoverImage?.data?.attributes?.url,
+          attr.cover?.data?.attributes?.url,
+          attr.coverImage?.data?.attributes?.url,
+          attr.Cover?.data?.attributes?.url,
+          attr.featured_image?.data?.attributes?.url,
+          attr.image?.data?.attributes?.url,
+          // 如果是数组形式
+          attr.CoverImage?.data?.[0]?.attributes?.url,
+          attr.cover?.data?.[0]?.attributes?.url,
+          // 直接路径
+          attr.CoverImage?.url,
+          attr.cover?.url,
+          attr.coverImage?.url,
+        ];
+
+        for (const path of possiblePaths) {
+          if (path) {
+            coverImage = path;
+            break;
+          }
+        }
+
+        console.log(`Post ${post.id} cover image:`, coverImage);
+
+        return {
+          id: post.id,
+          title: attr.Title,
+          slug: attr.Slug,
+          date: attr.PublishDate,
+          summary: attr.Summary,
+          coverImage: coverImage,
+        };
+      });
+
+      // 按年份分组
+      const yearMap: Record<string, any[]> = {};
+      posts.forEach((post) => {
+        if (!post.date) return;
+        const year = new Date(post.date).getFullYear();
+        if (!yearMap[year]) yearMap[year] = [];
+        yearMap[year].push(post);
+      });
+
+      // 组装 Timeline 需要的数据
+      const data = Object.keys(yearMap)
+        .sort((a, b) => Number(b) - Number(a))
+        .map((year) => ({
+          title: year,
+          content: (
+            <div className="space-y-6">
+              {yearMap[year].map((post) => (
+                <div
+                  key={post.id}
+                  className="border-b border-gray-200 dark:border-gray-700 pb-6 last:border-b-0"
+                >
+                  <Link
+                    href={`/posts/${post.slug}`}
+                    className="flex gap-4 group hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg p-3 transition-all duration-300"
+                  >
+                    {/* 封面图 */}
+                    <div className="flex-shrink-0 w-24 h-24 md:w-32 md:h-32 lg:w-36 lg:h-36">
+                      {post.coverImage ? (
+                        <Image
+                          src={
+                            post.coverImage.startsWith("http")
+                              ? post.coverImage
+                              : `${
+                                  process.env.NEXT_PUBLIC_STRAPI_URL ||
+                                  "http://localhost:1337"
+                                }${post.coverImage}`
+                          }
+                          alt={post.title}
+                          width={144}
+                          height={144}
+                          className="w-full h-full object-cover rounded-lg shadow-md group-hover:shadow-lg transition-shadow duration-300"
+                          onError={(e) => {
+                            console.log(
+                              `Image load error for post ${post.id}:`,
+                              post.coverImage
+                            );
+                          }}
+                        />
+                      ) : (
+                        // 默认封面图占位符
+                        <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow duration-300">
+                          <svg
+                            className="w-8 h-8 text-gray-400 dark:text-gray-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 文章信息 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 group-hover:text-[#66a6ff] dark:group-hover:text-[#66a6ff] transition-colors duration-300 mb-2">
+                        {post.title}
+                      </h3>
+
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                        {new Date(post.date).toLocaleDateString("zh-CN", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </p>
+
+                      {post.summary && (
+                        <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 leading-relaxed">
+                          {post.summary}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          ),
+        }));
+
+      setTimelineData(data);
+    }
+
+    fetchData();
   }, []);
 
-  const data = [
-    {
-      title: "2024",
-      content: (
-        <div>
-          <p className="mb-8 text-xs font-normal text-neutral-800 md:text-sm dark:text-neutral-200">
-            Built and launched Aceternity UI and Aceternity UI Pro from scratch
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <img
-              src="https://assets.aceternity.com/templates/startup-1.webp"
-              alt="startup template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-            <img
-              src="https://assets.aceternity.com/templates/startup-2.webp"
-              alt="startup template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-            <img
-              src="https://assets.aceternity.com/templates/startup-3.webp"
-              alt="startup template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-            <img
-              src="https://assets.aceternity.com/templates/startup-4.webp"
-              alt="startup template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "Early 2023",
-      content: (
-        <div>
-          <p className="mb-8 text-xs font-normal text-neutral-800 md:text-sm dark:text-neutral-200">
-            I usually run out of copy, but when I see content this big, I try to
-            integrate lorem ipsum.
-          </p>
-          <p className="mb-8 text-xs font-normal text-neutral-800 md:text-sm dark:text-neutral-200">
-            Lorem ipsum is for people who are too lazy to write copy. But we are
-            not. Here are some more example of beautiful designs I built.
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <img
-              src="https://assets.aceternity.com/pro/hero-sections.png"
-              alt="hero template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-            <img
-              src="https://assets.aceternity.com/features-section.png"
-              alt="feature template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-            <img
-              src="https://assets.aceternity.com/pro/bento-grids.png"
-              alt="bento template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-            <img
-              src="https://assets.aceternity.com/cards.png"
-              alt="cards template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "Changelog",
-      content: (
-        <div>
-          <p className="mb-4  text-xs font-normal text-neutral-800 md:text-sm dark:text-neutral-200">
-            Deployed 5 new components on Aceternity today
-          </p>
-          <div className="mb-8">
-            <div className="flex items-center gap-2 text-xs text-neutral-700 md:text-sm dark:text-neutral-300">
-              ✅ Card grid component
-            </div>
-            <div className="flex items-center gap-2 text-xs text-neutral-700 md:text-sm dark:text-neutral-300">
-              ✅ Startup template Aceternity
-            </div>
-            <div className="flex items-center gap-2 text-xs text-neutral-700 md:text-sm dark:text-neutral-300">
-              ✅ Random file upload lol
-            </div>
-            <div className="flex items-center gap-2 text-xs text-neutral-700 md:text-sm dark:text-neutral-300">
-              ✅ Himesh Reshammiya Music CD
-            </div>
-            <div className="flex items-center gap-2 text-xs text-neutral-700 md:text-sm dark:text-neutral-300">
-              ✅ Salman Bhai Fan Club registrations open
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <img
-              src="https://assets.aceternity.com/pro/hero-sections.png"
-              alt="hero template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-            <img
-              src="https://assets.aceternity.com/features-section.png"
-              alt="feature template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-            <img
-              src="https://assets.aceternity.com/pro/bento-grids.png"
-              alt="bento template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-            <img
-              src="https://assets.aceternity.com/cards.png"
-              alt="cards template"
-              width={500}
-              height={500}
-              className="h-20 w-full rounded-lg object-cover shadow-[0_0_24px_rgba(34,_42,_53,_0.06),_0_1px_1px_rgba(0,_0,_0,_0.05),_0_0_0_1px_rgba(34,_42,_53,_0.04),_0_0_4px_rgba(34,_42,_53,_0.08),_0_16px_68px_rgba(47,_48,_55,_0.05),_0_1px_0_rgba(255,_255,_255,_0.1)_inset] md:h-44 lg:h-60"
-            />
-          </div>
-        </div>
-      ),
-    },
-  ];
   return (
     <div className="min-h-screen w-full pt-28 md:pt-32 pb-20 px-4 bg-gradient-to-b from-[#f5f7fa] to-[#f7f9f7] dark:from-[#2a2c31] dark:to-[#232528] transition-colors duration-500">
       <style
@@ -242,6 +256,14 @@ export default function Archives() {
           animation: dataFlow 2s linear infinite;
         }
         
+        /* 限制文本行数 */
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        
         /* 粒子效果 */
         .particle {
           position: absolute;
@@ -312,7 +334,6 @@ export default function Archives() {
       `,
         }}
       />
-
       <div className="mx-auto max-w-screen-xl px-6 sm:px-10 md:px-16 lg:px-20">
         <div
           className={`text-center mb-10 opacity-0 ${
@@ -474,7 +495,7 @@ export default function Archives() {
         </div>
 
         <div
-          className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden transition-all duration-500 p-6 md:p-8 relative backdrop-blur-sm bg-opacity-60 dark:bg-opacity-40 opacity-0 ${
+          className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg transition-all duration-500 p-6 md:p-8 relative backdrop-blur-sm bg-opacity-60 dark:bg-opacity-40 opacity-0 min-h-[600px] ${
             animate ? "animate-scale-in" : ""
           }`}
           style={{
@@ -556,9 +577,17 @@ export default function Archives() {
           <div className="absolute top-10 left-10 w-20 h-20 border-t border-l border-gray-300 dark:border-gray-600 opacity-30 rounded-tl-lg"></div>
           <div className="absolute bottom-10 right-10 w-20 h-20 border-b border-r border-gray-300 dark:border-gray-600 opacity-30 rounded-br-lg"></div>
 
-          {/* 时间线内容区域 */}
-          <div className="relative z-10">
-            <Timeline data={data} />
+          {/* Timeline容器 */}
+          <div className="relative z-10 w-full">
+            {timelineData.length === 0 ? (
+              <div className="flex justify-center items-center h-40">
+                <div className="text-gray-500 dark:text-gray-400">
+                  正在加载归档数据...
+                </div>
+              </div>
+            ) : (
+              <Timeline data={timelineData} />
+            )}
           </div>
         </div>
       </div>

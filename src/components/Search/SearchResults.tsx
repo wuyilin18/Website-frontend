@@ -7,9 +7,9 @@ import { cn } from "@/lib/utils";
 export interface SearchResultItem {
   objectID: string;
   title: string;
-  excerpt?: string;
+  summary?: string;
   content?: string;
-  slug: string;
+  Slug: string;
   imageUrl?: string;
 }
 
@@ -62,7 +62,7 @@ export function SearchResults({
           )}
         >
           <Link
-            href={`/${result.slug}`}
+            href={`${result.Slug}`} // 使用新的 slug 链接
             className="block"
             onClick={onResultClick}
           >
@@ -74,13 +74,13 @@ export function SearchResults({
                 <h3 className="text-base font-medium text-gray-900 dark:text-white mb-1">
                   {result.title}
                 </h3>
-                {result.excerpt && (
+                {result.summary && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-                    {result.excerpt}
+                    {result.summary}
                   </p>
                 )}
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  /{result.slug}
+                  /{result.Slug}
                 </p>
               </div>
             </div>

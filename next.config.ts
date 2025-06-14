@@ -31,6 +31,8 @@ const nextConfig: NextConfig = {
       "p1.music.126.net",
       "ws.stream.qqmusic.qq.com",
       "y.gtimg.cn",
+      "localhost",
+      "127.0.0.1",
     ],
     deviceSizes: [640, 750, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96],

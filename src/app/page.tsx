@@ -1,4 +1,3 @@
-"use client";
 import { Analytics } from "@vercel/analytics/react";
 import { TextAnimate } from "@/components/magicui/text-animate";
 import { Dock } from "@/components/Home/naver";
@@ -20,18 +19,21 @@ import {
   FamilyButton,
   FamilyButtonContent,
 } from "@/components/ui/family-button";
-import dynamic from "next/dynamic";
+import { getPosts } from "@/lib/strapi";
+import Link from "next/link";
+import ArticleList from "@/components/ArticleList";
+import FullMusicPlayerWrapper from "@/components/FullMusicPlayerWrapper";
 
-// 动态导入全功能音乐播放器
-const FullMusicPlayer = dynamic(
-  () =>
-    import("@/components/MusicPlayer/FullMusicPlayer").then(
-      (mod) => mod.FullMusicPlayer
-    ),
-  { ssr: false }
-);
+// 将主页面组件保持为服务器端组件
+export default async function Home() {
+  // 获取最新的5篇文章
+  const latestPosts = await getPosts({
+    pagination: {
+      pageSize: 5,
+      page: 1,
+    },
+  });
 
-export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#f5f7fa] to-[#f7f9f7] dark:from-[#2a2c31] dark:to-[#232528] relative">
       {/* 添加首页专用的CSS动画样式 */}
@@ -349,7 +351,6 @@ export default function Home() {
       `,
         }}
       />
-
       {/* 背景装饰 - 水墨电路风格 */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         {/* 水墨效果和装饰 */}
@@ -480,11 +481,9 @@ export default function Home() {
           </svg>
         </div>
       </div>
-
       {/* 导航栏 */}
       <Analytics />
       <Dock />
-
       {/* 滚动视差化组件 */}
       <main className="snap-y snap-mandatory h-screen overflow-y-auto scroll-smooth">
         <ParallaxSection
@@ -493,7 +492,6 @@ export default function Home() {
           backgroundImage="https://cdn.wuyilin18.top/img/backGroundImage.webp"
         />
       </main>
-
       {/* 盒子显示动画 */}
       <div className="h-[40rem] flex flex-col items-center justify-center overflow-hidden z-6">
         <BoxReveal boxColor={"#56CFE1"} duration={0.5}>
@@ -921,9 +919,8 @@ export default function Home() {
           </div>
         </BoxReveal>
       </div>
-
       {/* 轨道圆 */}
-      <div className="  relative z-10 flex h-[60rem]  md:h-[55rem] flex-col items-center justify-center overflow-hidden">
+      <div className="relative z-10 flex h-[60rem] md:h-[55rem] flex-col items-center justify-center overflow-hidden">
         {/* 3D卡片 */}
         <div className="z-100">
           <CardContainer>
@@ -1053,20 +1050,19 @@ export default function Home() {
           </div>
         </Orbit>
       </div>
-
       {/* 音乐播放器 */}
       <FamilyButton>
         <FamilyButtonContent>
-          <FullMusicPlayer />
+          <FullMusicPlayerWrapper />
         </FamilyButtonContent>
       </FamilyButton>
-
       {/* 文章区域 - 参考图片样式设计 */}
       <section
         id="featured-articles"
         className="py-16 z-6 bg-gradient-to-br from-[#f5f7fa] to-[#f7f9f7] dark:from-[#2a2c31] dark:to-[#232528]"
       >
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          {/* 标题区域 */}
           <div className="mb-12 mt-10 text-center">
             <h2 className="text-3xl font-bold bg-gradient-to-r from-[#56CFE1] to-[#9D4EDD] dark:from-[#56CFE1] dark:to-[#FF9470] bg-clip-text text-transparent">
               精选技术博文
@@ -1084,123 +1080,22 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8">
-            <ArticleCard
-              category="网络安全"
-              title="什么是CDN? 它解决了什么难题? 国内CDN加Vercel,无服务器使用办法"
-              date="2023-8-26"
-              tag="CDN"
-              image="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop"
-            />
-            <ArticleCard
-              category="前端技术"
-              title="React Server Components深度解析与最佳实践指南"
-              date="2023-10-15"
-              tag="React"
-              image="https://images.unsplash.com/photo-1633356122102-3fe601e05bd2?q=80&w=1000&auto=format&fit=crop"
-            />
-            <ArticleCard
-              category="开发工具"
-              title="Git工作流与团队协作：从理论到实践的完整指南"
-              date="2023-9-18"
-              tag="Git"
-              image="https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?q=80&w=1000&auto=format&fit=crop"
-            />
-            <ArticleCard
-              category="后端技术"
-              title="MongoDB数据建模与性能优化：实战案例解析"
-              date="2023-11-05"
-              tag="MongoDB"
-              image="https://images.unsplash.com/photo-1544197150-b99a580bb7a8?q=80&w=1000&auto=format&fit=crop"
-            />
-          </div>
+          {/* 文章列表区域 - 直接使用ArticleList组件 */}
+          <ArticleList
+            posts={latestPosts}
+            className="!grid-cols-1 md:!grid-cols-2 lg:!grid-cols-2 !gap-8"
+          />
 
+          {/* 按钮区域 */}
           <div className="mt-10 text-center">
-            <InteractiveHoverButton>
-              查看更多文章 Start Exploring
-            </InteractiveHoverButton>
+            <Link href="/posts" className="inline-block">
+              <InteractiveHoverButton>
+                查看更多文章 Start Exploring
+              </InteractiveHoverButton>
+            </Link>
           </div>
         </div>
       </section>
     </main>
-  );
-}
-
-interface ArticleCardProps {
-  category: string;
-  title: string;
-  date: string;
-  tag: string;
-  image: string;
-}
-
-function ArticleCard({ category, title, date, tag, image }: ArticleCardProps) {
-  return (
-    <div className="group bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-      <div className="relative">
-        {/* 文章图片 */}
-        <div className="h-48 overflow-hidden">
-          <Image
-            src={image}
-            alt={title}
-            width={500}
-            height={300}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-            unoptimized={image.startsWith("https://")}
-            onError={(e) => {
-              // Fallback to a default image if loading fails
-              const target = e.target as HTMLImageElement;
-              target.src =
-                "https://images.unsplash.com/photo-1518770660439-4636190af475?w=500&h=300&auto=format";
-            }}
-          />
-        </div>
-
-        {/* 分类标签 - 左上角 */}
-        <div className="absolute top-3 left-3">
-          <span className="px-2 py-1 text-xs font-medium bg-white/80 dark:bg-gray-800/80 text-gray-800 dark:text-gray-200 rounded backdrop-blur-sm">
-            {category}
-          </span>
-        </div>
-      </div>
-
-      <div className="p-5">
-        {/* 标签 */}
-        <div className="flex items-center mb-3">
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            #{tag}
-          </span>
-          <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
-            {date}
-          </span>
-        </div>
-
-        {/* 标题 */}
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 group-hover:text-[#56CFE1] dark:group-hover:text-[#56CFE1] transition-colors">
-          {title}
-        </h3>
-
-        {/* 阅读更多链接 - 仅在悬停时显示 */}
-        <div className="mt-2 overflow-hidden h-0 group-hover:h-6 transition-all duration-300">
-          <span className="text-sm font-medium text-[#56CFE1] flex items-center">
-            阅读更多
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 ml-1"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </span>
-        </div>
-      </div>
-    </div>
   );
 }

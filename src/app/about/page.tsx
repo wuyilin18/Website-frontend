@@ -2366,7 +2366,6 @@ export default function AboutPage() {
 
                 <div className="relative w-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg p-6 overflow-hidden border border-gray-100 dark:border-gray-700">
                   {/* 顶部水墨装饰线 */}
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#56CFE1]/80 to-[#9D4EDD]/80  dark:from-[#56CFE1]/80 dark:to-[#FF9470]/80 "></div>
 
                   {/* 墨水滴装饰 - 右上角 */}
                   <div className="absolute top-6 right-6 w-24 h-24 pointer-events-none opacity-10">
