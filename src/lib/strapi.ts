@@ -1,8 +1,7 @@
 // 与Strapi API交互的服务
 import qs from "qs";
 
-const STRAPI_URL =
-  process.env.NEXT_PUBLIC_STRAPI_URL || "http://127.0.0.1:1337";
+const STRAPI_URL = "https://committed-vacation-455814792d.strapiapp.com";
 
 // 定义媒体对象的可能类型
 export type StrapiMediaObject = {
