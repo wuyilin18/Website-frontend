@@ -7,24 +7,26 @@ export const metadata: Metadata = {
   description: "浏览所有博客文章",
 };
 
-// 定义Post类型接口（扁平结构）
-interface Post {
-  id: number;
-  Title?: string;
-  Slug?: string;
-  PublishDate?: string;
-  Summary?: string;
-  Content?: any;
-  CoverImage?: any;
-  categories?: Array<{ id: number; name: string }>;
-  tags?: Array<{ id: number; name: string }>;
-}
-
 export default async function PostsPage() {
   // 从Strapi API获取文章列表
   const posts = await getPosts();
 
   console.log("获取到文章列表:", JSON.stringify(posts, null, 2));
+
+  // 规范化文章数据，处理关联数据的不同结构
+  const normalizedPosts = posts.data.map((post) => {
+    const categories =
+      post.categories && "data" in post.categories
+        ? post.categories.data
+        : post.categories;
+    const tags = post.tags && "data" in post.tags ? post.tags.data : post.tags;
+
+    return {
+      ...post,
+      categories: Array.isArray(categories) ? categories : [],
+      tags: Array.isArray(tags) ? tags : [],
+    };
+  });
 
   return (
     <div className="min-h-screen w-full pt-28 md:pt-32 pb-20 px-4 bg-gradient-to-b from-[#f5f7fa] to-[#f7f9f7] dark:from-[#2a2c31] dark:to-[#232528] transition-colors duration-500">
@@ -1326,16 +1328,18 @@ export default async function PostsPage() {
 
             {/* 文章网格 */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 relative z-10">
-              {posts.data
-                .filter((post: Post) => post && post.Title)
-                .map((post: Post, index: number) => {
+              {normalizedPosts
+                .filter((post) => post && post.Title)
+                .map((post, index: number) => {
                   const category =
-                    post.categories && post.categories.length > 0
+                    (post.categories && post.categories.length > 0
                       ? post.categories[0].name
-                      : "未分类";
+                      : "未分类") ?? "未分类";
 
                   const tag =
-                    post.tags && post.tags.length > 0 ? post.tags[0].name : "";
+                    (post.tags && post.tags.length > 0
+                      ? post.tags[0].name
+                      : "") ?? "";
 
                   // 删除原来的图片处理逻辑，直接使用原始数据
                   console.log(

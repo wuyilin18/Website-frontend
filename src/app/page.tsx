@@ -14,7 +14,7 @@ import { WordRotate } from "@/components/magicui/word-rotate";
 import { AuroraText } from "@/components/magicui/aurora-text";
 import InteractiveMenu from "@/components/Home/InteractiveMenu";
 import { InteractiveHoverButton } from "@/components/magicui/interactive-hover-button";
-
+import { StrapiResponse } from "@/types/strapi";
 import {
   FamilyButton,
   FamilyButtonContent,
@@ -1079,13 +1079,12 @@ export default async function Home() {
               </TextAnimate>
             </div>
           </div>
-
           {/* 文章列表区域 - 直接使用ArticleList组件 */}
+          {/* 在组件中使用时进行类型断言 */}
           <ArticleList
-            posts={latestPosts}
+            posts={latestPosts as StrapiResponse}
             className="!grid-cols-1 md:!grid-cols-2 lg:!grid-cols-2 !gap-8"
           />
-
           {/* 按钮区域 */}
           <div className="mt-10 text-center">
             <Link href="/posts" className="inline-block">

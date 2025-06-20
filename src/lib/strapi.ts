@@ -5,7 +5,7 @@ const STRAPI_URL =
   process.env.NEXT_PUBLIC_STRAPI_URL || "http://127.0.0.1:1337";
 
 // 定义媒体对象的可能类型
-type StrapiMediaObject = {
+export type StrapiMediaObject = {
   url?: string;
   id?: number;
   width?: number;
@@ -15,27 +15,144 @@ type StrapiMediaObject = {
     attributes?: {
       url?: string;
       formats?: Record<string, { url: string }>;
-      [key: string]: unknown;
     };
-    [key: string]: unknown;
   };
   attributes?: {
     url?: string;
     formats?: Record<string, { url: string }>;
-    [key: string]: unknown;
   };
-  [key: string]: unknown;
 };
+
+// 定义更具体的 Strapi 参数类型以避免 'any'
+type StrapiFilterValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: StrapiFilterValue }
+  | StrapiFilterValue[];
+
+type StrapiFilters = {
+  [key: string]: StrapiFilterValue | { [key: string]: StrapiFilterValue };
+};
+
+type StrapiPopulate =
+  | string
+  | string[]
+  | {
+      [key: string]:
+        | boolean
+        | {
+            populate?: StrapiPopulate;
+            fields?: string[];
+            filters?: StrapiFilters;
+          };
+    };
 
 // 定义Strapi参数接口
 interface StrapiParams {
   fields?: string[];
   sort?: string[];
-  populate?: string | string[] | Record<string, unknown>;
-  filters?: Record<string, unknown>;
-  pagination?: Record<string, number>;
-  [key: string]: unknown;
+  populate?: StrapiPopulate;
+  filters?: StrapiFilters;
+  pagination?: {
+    page?: number;
+    pageSize?: number;
+    limit?: number; // for compatibility
+  };
 }
+
+// 定义标签和分类的数据结构
+interface TagData {
+  id: number;
+  attributes?: { name?: string };
+  name?: string;
+}
+
+interface CategoryData {
+  id: number;
+  attributes?: { name?: string };
+  name?: string;
+}
+
+// 定义Strapi数据项接口
+interface StrapiItem {
+  id: number;
+  attributes?: PostDataSource;
+  Title?: string;
+  Summary?: string;
+  Content?: string;
+  Slug?: string;
+  PublishDate?: string;
+  createdAt?: string;
+  CoverImage?: StrapiMediaObject | null;
+  tags?: { data?: TagData[] } | TagData[];
+  categories?: { data?: CategoryData[] } | CategoryData[];
+  name?: string;
+  posts?: {
+    data?: StrapiItem[];
+  };
+}
+
+// 定义Strapi响应接口
+interface StrapiResponse {
+  data: StrapiItem[];
+  meta?: {
+    pagination?: {
+      page: number;
+      pageSize: number;
+      pageCount: number;
+      total: number;
+    };
+  };
+}
+
+// 定义错误响应接口
+interface StrapiErrorResponse {
+  error?: {
+    message?: string;
+    [key: string]: unknown; // Keep this for flexible error details
+  };
+}
+
+// Represents a flattened post item, compatible with Strapi v5 responses
+interface FlatPost {
+  id: number;
+  Title?: string;
+  title?: string;
+  Summary?: string;
+  summary?: string;
+  Content?: string;
+  content?: string;
+  Slug?: string;
+  slug?: string;
+  PublishDate?: string;
+  publishDate?: string;
+  published_at?: string;
+  createdAt?: string;
+  created_at?: string;
+  CoverImage?: StrapiMediaObject | null;
+  coverImage?: StrapiMediaObject | null;
+  tags?: TagData[];
+  categories?: CategoryData[];
+}
+
+// A type to represent the possible shapes of post data before flattening.
+type PostDataSource = {
+  Title?: string;
+  Summary?: string;
+  Content?: string;
+  Slug?: string;
+  PublishDate?: string;
+  createdAt?: string;
+  CoverImage?: StrapiMediaObject | null;
+  tags?: { data?: TagData[] } | TagData[];
+  categories?: { data?: CategoryData[] } | CategoryData[];
+  name?: string;
+  posts?: {
+    data?: StrapiItem[];
+  };
+};
 
 /**
  * 获取API URL
@@ -62,8 +179,8 @@ const checkStrapiConnection = async (): Promise<boolean> => {
       }
     );
     return response.ok;
-  } catch (error) {
-    console.warn("Strapi服务器连接检查失败:", error);
+  } catch (error: unknown) {
+    console.error("checkStrapiConnection 错误:", error);
     return false;
   }
 };
@@ -86,7 +203,7 @@ export const validateAPIEndpoint = async () => {
     });
 
     return response.ok;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("API 验证失败:", error);
     return false;
   }
@@ -98,7 +215,7 @@ export const validateAPIEndpoint = async () => {
  * @returns 媒体URL
  */
 export const getStrapiMedia = (
-  media: StrapiMediaObject | string | null
+  media: StrapiMediaObject | string | null | undefined
 ): string | null => {
   if (!media) return null;
 
@@ -151,7 +268,7 @@ export const getStrapiMedia = (
 
     console.warn("无法解析媒体对象:", JSON.stringify(mediaObj, null, 2));
     return null;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("getStrapiMedia 错误:", error);
     return null;
   }
@@ -166,9 +283,9 @@ export const getStrapiMedia = (
  */
 export const fetchAPI = async (
   path: string,
-  urlParamsObject = {},
-  options = {}
-) => {
+  urlParamsObject: StrapiParams = {},
+  options: RequestInit = {}
+): Promise<StrapiResponse> => {
   // 首先检查开发环境和连接状态
   if (process.env.NODE_ENV === "development") {
     const isConnected = await checkStrapiConnection();
@@ -210,10 +327,10 @@ export const fetchAPI = async (
       // 尝试获取详细的错误信息
       let errorDetails = "";
       try {
-        const errorData = await response.json();
+        const errorData: StrapiErrorResponse = await response.json();
         console.error("Strapi 错误响应:", JSON.stringify(errorData, null, 2));
         errorDetails = errorData.error?.message || JSON.stringify(errorData);
-      } catch (e) {
+      } catch {
         errorDetails = await response.text();
       }
 
@@ -226,9 +343,9 @@ export const fetchAPI = async (
       );
     }
 
-    const data = await response.json();
+    const data: StrapiResponse = await response.json();
     return data;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Strapi API 请求失败:`, error);
 
     if (process.env.NODE_ENV === "development") {
@@ -245,7 +362,7 @@ export const fetchAPI = async (
  * @param path API路径
  * @returns 模拟数据
  */
-const getMockData = (path: string) => {
+const getMockData = (path: string): StrapiResponse => {
   console.log(`返回模拟数据 for path: ${path}`);
 
   if (path === "/posts" || path === "/api/posts") {
@@ -312,7 +429,7 @@ const getMockData = (path: string) => {
     };
   }
 
-  return { data: null };
+  return { data: [] };
 };
 
 /**
@@ -346,15 +463,15 @@ export const getPosts = async (params: StrapiParams = {}) => {
     };
 
     // 如果传入了 limit 参数，转换为 pageSize
-    if (params.pagination?.limit) {
-      mergedParams.pagination.pageSize = params.pagination.limit;
-      delete (mergedParams.pagination as any).limit;
+    if (mergedParams.pagination?.limit) {
+      mergedParams.pagination.pageSize = mergedParams.pagination.limit;
+      delete mergedParams.pagination.limit;
     }
 
     console.log("最终API参数:", JSON.stringify(mergedParams));
 
     return await fetchAPI("/posts", mergedParams);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("getPosts 错误:", error);
 
     // 如果请求失败，尝试最简单的请求
@@ -367,7 +484,7 @@ export const getPosts = async (params: StrapiParams = {}) => {
             params.pagination?.pageSize || params.pagination?.limit || 5,
         },
       });
-    } catch (fallbackError) {
+    } catch (fallbackError: unknown) {
       console.error("简化请求也失败了:", fallbackError);
 
       // 开发环境返回模拟数据
@@ -385,7 +502,9 @@ export const getPosts = async (params: StrapiParams = {}) => {
  * @param slug 文章别名
  * @returns 文章详情
  */
-export async function getPostBySlug(slug: string) {
+export async function getPostBySlug(
+  slug: string
+): Promise<PostDataSource | null> {
   try {
     console.log("getPostBySlug: 开始获取文章, slug:", slug);
 
@@ -434,13 +553,13 @@ export async function getPostBySlug(slug: string) {
 
     console.log("getPostBySlug: 未找到文章");
     return null;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`getPostBySlug: 获取文章失败 (slug: ${slug})`, error);
 
     // 开发环境下返回模拟数据
     if (process.env.NODE_ENV === "development") {
       console.log("getPostBySlug: 发生错误，返回模拟数据");
-      return {
+      const mockPost: PostDataSource = {
         Title: `模拟文章 - ${slug}`,
         Content: `网络连接失败，显示模拟内容。\n\n错误信息: ${
           error instanceof Error ? error.message : "未知错误"
@@ -452,11 +571,13 @@ export async function getPostBySlug(slug: string) {
         categories: { data: [] },
         tags: { data: [] },
       };
+      return mockPost;
     }
 
     return null;
   }
 }
+
 /**
  * 获取相关文章（基于标签）
  * @param currentSlug 当前文章的slug
@@ -468,7 +589,7 @@ export const getRelatedPosts = async (
   currentSlug: string,
   tags: string[],
   limit: number = 2
-) => {
+): Promise<Partial<FlatPost>[]> => {
   console.log(
     "调用getRelatedPosts, 当前文章:",
     currentSlug,
@@ -573,34 +694,58 @@ export const getRelatedPosts = async (
       return [];
     }
 
-    // 转换数据格式
-    const relatedPosts = response.data.map((item: any) => {
-      const attributes = item.attributes || item;
+    // 调试：打印原始响应数据
+    console.log(
+      "getRelatedPosts: 原始响应数据:",
+      JSON.stringify(response.data, null, 2)
+    );
+
+    // 转换数据格式 - 修复Strapi v5数据结构
+    const relatedPosts = response.data.map((item): Partial<FlatPost> => {
+      const postData = (item.attributes || item) as PostDataSource;
+
+      const extractTags = (
+        source: { data?: TagData[] } | TagData[] | undefined
+      ): TagData[] => {
+        if (!source) return [];
+        return Array.isArray(source) ? source : source.data ?? [];
+      };
+
+      const extractCategories = (
+        source: { data?: CategoryData[] } | CategoryData[] | undefined
+      ): CategoryData[] => {
+        if (!source) return [];
+        return Array.isArray(source) ? source : source.data ?? [];
+      };
+
+      const postTags = extractTags(postData.tags);
+      const postCategories = extractCategories(postData.categories);
+
       return {
         id: item.id,
-        Title: attributes.Title,
-        Summary: attributes.Summary,
-        Content: attributes.Content,
-        slug: attributes.Slug,
-        PublishDate: attributes.PublishDate,
-        createdAt: attributes.createdAt,
-        CoverImage: attributes.CoverImage,
-        tags:
-          attributes.tags?.data?.map((tag: any) => ({
-            id: tag.id,
-            name: tag.attributes?.name || tag.name,
-          })) || [],
-        categories:
-          attributes.categories?.data?.map((category: any) => ({
-            id: category.id,
-            name: category.attributes?.name || category.name,
-          })) || [],
+        Title: postData.Title,
+        Summary: postData.Summary,
+        slug: postData.Slug,
+        PublishDate: postData.PublishDate,
+        CoverImage: postData.CoverImage,
+        tags: postTags.map((tag) => ({
+          id: tag.id,
+          name: tag.attributes?.name || tag.name || "",
+        })),
+        categories: postCategories.map((cat) => ({
+          id: cat.id,
+          name: cat.attributes?.name || cat.name || "",
+        })),
       };
     });
 
     console.log(`getRelatedPosts: 找到 ${relatedPosts.length} 篇相关文章`);
+    console.log(
+      "getRelatedPosts: 最终返回数据:",
+      JSON.stringify(relatedPosts, null, 2)
+    );
     return relatedPosts;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("getRelatedPosts: 获取相关文章时出错:", error);
 
     // 开发环境下返回模拟数据
@@ -623,6 +768,7 @@ export const getRelatedPosts = async (
     return [];
   }
 };
+
 /**
  * 获取所有分类
  * @param params 查询参数
@@ -647,7 +793,7 @@ export const getCategories = async (params: StrapiParams = {}) => {
 export const getCategoryBySlug = async (
   slug: string,
   params: StrapiParams = {}
-) => {
+): Promise<StrapiItem | null> => {
   console.log(
     "调用getCategoryBySlug, slug:",
     slug,
@@ -664,8 +810,8 @@ export const getCategoryBySlug = async (
   let decodedSlug = slug;
   try {
     decodedSlug = decodeURIComponent(slug);
-  } catch (e) {
-    console.error("解码slug时出错:", e);
+  } catch (error: unknown) {
+    console.error("解码slug时出错:", error);
   }
 
   console.log("getCategoryBySlug: 使用解码后的slug:", decodedSlug);
@@ -679,14 +825,8 @@ export const getCategoryBySlug = async (
   const defaultParams: StrapiParams = {
     filters,
     populate: {
-      "*": true,
       posts: {
-        populate: {
-          "*": true,
-          CoverImage: true,
-          categories: true,
-          tags: true,
-        },
+        populate: ["CoverImage", "categories", "tags"],
       },
     },
   };
@@ -716,12 +856,12 @@ export const getCategoryBySlug = async (
     const category = response.data[0];
     console.log(
       `找到分类: "${decodedSlug}", ID: ${category.id}, 文章数: ${
-        category.posts?.length || 0
+        category.attributes?.posts?.data?.length || 0
       }`
     );
 
     return category;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("getCategoryBySlug 错误:", error);
     return null;
   }
@@ -748,7 +888,10 @@ export const getTags = async (params: StrapiParams = {}) => {
  * @param params 查询参数
  * @returns 标签详情
  */
-export const getTagBySlug = async (slug: string, params: StrapiParams = {}) => {
+export const getTagBySlug = async (
+  slug: string,
+  params: StrapiParams = {}
+): Promise<StrapiItem | null> => {
   console.log(
     "调用getTagBySlug, slug:",
     slug,
@@ -764,8 +907,8 @@ export const getTagBySlug = async (slug: string, params: StrapiParams = {}) => {
   let decodedSlug = slug;
   try {
     decodedSlug = decodeURIComponent(slug);
-  } catch (e) {
-    console.error("解码slug时出错:", e);
+  } catch (error: unknown) {
+    console.error("解码slug时出错:", error);
   }
 
   console.log("getTagBySlug: 使用解码后的slug:", decodedSlug);
@@ -778,7 +921,7 @@ export const getTagBySlug = async (slug: string, params: StrapiParams = {}) => {
 
   const defaultParams: StrapiParams = {
     filters,
-    populate: { "*": true },
+    populate: "*",
   };
 
   const mergedParams: StrapiParams = {
@@ -808,12 +951,12 @@ export const getTagBySlug = async (slug: string, params: StrapiParams = {}) => {
     const tag = response.data[0];
     console.log(
       `找到标签: "${decodedSlug}", ID: ${tag.id}, 文章数: ${
-        tag.posts?.length || 0
+        tag.attributes?.posts?.data?.length || 0
       }`
     );
 
     return tag;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("getTagBySlug 错误:", error);
     return null;
   }

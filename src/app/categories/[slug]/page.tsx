@@ -3,10 +3,10 @@ import { getCategoryBySlug, getStrapiMedia } from "@/lib/strapi";
 import Link from "next/link";
 import Image from "next/image";
 
-// 定义参数类型
-type Params = {
+// 定义参数类型 - 修改为 Promise
+type Params = Promise<{
   slug: string;
-};
+}>;
 
 // 定义Strapi媒体类型
 interface StrapiMedia {
@@ -44,8 +44,10 @@ export async function generateMetadata({
   params: Params;
 }): Promise<Metadata> {
   try {
+    // 等待 params 解析
+    const { slug } = await params;
     // 确保对params.slug进行解码
-    const decodedSlug = decodeURIComponent(params.slug);
+    const decodedSlug = decodeURIComponent(slug);
     console.log("generateMetadata: 正在查询分类:", decodedSlug);
 
     const category = (await getCategoryBySlug(decodedSlug, {
@@ -75,9 +77,10 @@ export async function generateMetadata({
     };
   } catch (error) {
     console.error("generateMetadata: 生成分类元数据时出错:", error);
-    // 使用params.slug作为后备
+    // 等待 params 解析后使用 slug 作为后备
+    const { slug } = await params;
     return {
-      title: `${params.slug} | 分类 | 十八加十八`,
+      title: `${slug} | 分类 | 十八加十八`,
       description: `浏览分类下的所有文章`,
     };
   }
@@ -85,9 +88,11 @@ export async function generateMetadata({
 
 export default async function CategoryPage({ params }: { params: Params }) {
   try {
+    // 等待 params 解析
+    const { slug } = await params;
     // 从Strapi API获取分类信息
     // 确保对params.slug进行解码
-    const decodedSlug = decodeURIComponent(params.slug);
+    const decodedSlug = decodeURIComponent(slug);
     console.log("正在查询分类:", decodedSlug);
 
     const category = (await getCategoryBySlug(decodedSlug, {
@@ -188,6 +193,7 @@ export default async function CategoryPage({ params }: { params: Params }) {
 
     console.log("找到分类:", categoryName, "文章数:", posts.length);
 
+    // ... 其余代码保持不变 ...
     return (
       <div className="min-h-screen w-full pt-28 md:pt-32 pb-20 px-4 bg-gradient-to-b from-[#f5f7fa] to-[#f7f9f7] dark:from-[#2a2c31] dark:to-[#232528] transition-colors duration-500">
         <style
@@ -360,7 +366,7 @@ export default async function CategoryPage({ params }: { params: Params }) {
           height: 40px;
           bottom: 20%;
           right: 25%;
-                    background: radial-gradient(circle at center, rgba(80, 120, 86, 0.2), rgba(20, 20, 20, 0.01));
+          background: radial-gradient(circle at center, rgba(80, 120, 86, 0.2), rgba(20, 20, 20, 0.01));
           filter: blur(10px);
           animation: float 9s ease-in-out infinite;
         }
@@ -926,10 +932,82 @@ export default async function CategoryPage({ params }: { params: Params }) {
 }
 
 function ArticleCard({ post }: { post: Post }) {
-  // 获取封面图片URL
-  const coverImageUrl = post.CoverImage
-    ? getStrapiMedia(post.CoverImage)
-    : "https://cdn.wuyilin18.top/img/7245943.png"; // 默认封面图片
+  // 安全地获取封面图片URL
+  const getCoverImageUrl = (): string => {
+    if (!post.CoverImage) {
+      return "https://cdn.wuyilin18.top/img/7245943.png";
+    }
+
+    // 类型检查和转换
+    try {
+      // 如果是字符串，直接返回
+      if (typeof post.CoverImage === "string") {
+        return post.CoverImage;
+      }
+
+      // 如果是对象，尝试使用 getStrapiMedia
+      if (typeof post.CoverImage === "object" && post.CoverImage !== null) {
+        // 使用 unknown 类型代替 any，然后进行类型检查
+        const mediaObject = post.CoverImage as unknown;
+
+        // 检查对象是否有必要的属性结构
+        if (typeof mediaObject === "object" && mediaObject !== null) {
+          const obj = mediaObject as Record<string, unknown>;
+
+          // 尝试不同的属性路径获取 URL
+          // 直接的 url 属性
+          if (typeof obj.url === "string") {
+            return obj.url;
+          }
+
+          // data.attributes.url 结构
+          if (obj.data && typeof obj.data === "object" && obj.data !== null) {
+            const data = obj.data as Record<string, unknown>;
+            if (
+              data.attributes &&
+              typeof data.attributes === "object" &&
+              data.attributes !== null
+            ) {
+              const attributes = data.attributes as Record<string, unknown>;
+              if (typeof attributes.url === "string") {
+                return attributes.url;
+              }
+            }
+          }
+
+          // attributes.url 结构
+          if (
+            obj.attributes &&
+            typeof obj.attributes === "object" &&
+            obj.attributes !== null
+          ) {
+            const attributes = obj.attributes as Record<string, unknown>;
+            if (typeof attributes.url === "string") {
+              return attributes.url;
+            }
+          }
+
+          // 尝试使用 getStrapiMedia，使用类型断言为 Record<string, unknown>
+          try {
+            const mediaUrl = getStrapiMedia(
+              mediaObject as Record<string, unknown>
+            );
+            return mediaUrl || "https://cdn.wuyilin18.top/img/7245943.png";
+          } catch {
+            // 如果 getStrapiMedia 失败，使用默认图片
+            return "https://cdn.wuyilin18.top/img/7245943.png";
+          }
+        }
+      }
+
+      return "https://cdn.wuyilin18.top/img/7245943.png";
+    } catch (error) {
+      console.warn("获取封面图片失败:", error);
+      return "https://cdn.wuyilin18.top/img/7245943.png";
+    }
+  };
+
+  const coverImageUrl = getCoverImageUrl();
 
   // 格式化日期
   const publishDate = post.PublishDate
@@ -942,7 +1020,7 @@ function ArticleCard({ post }: { post: Post }) {
         {/* 文章封面图片 */}
         <div className="relative h-48 w-full overflow-hidden rounded-t-xl">
           <Image
-            src={coverImageUrl || "https://cdn.wuyilin18.top/img/7245943.png"}
+            src={coverImageUrl}
             alt={post.Title}
             fill
             className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110"

@@ -7,11 +7,27 @@ import { SearchResultItem } from "./SearchResults";
 import { cn } from "@/lib/utils";
 
 // Define proper types for Algolia
+interface AlgoliaHighlightResult {
+  value: string;
+  matchLevel: "none" | "partial" | "full";
+  matchedWords: string[];
+}
+
 interface AlgoliaHit {
   objectID: string;
   title?: string;
-  Summary?: string;
+  summary?: string;
+  Summary?: string; // Keep for compatibility
+  slug?: string;
+  Slug?: string; // Keep for compatibility
   imageUrl?: string;
+  coverImage?: string; // Keep for compatibility
+  _highlightResult?: {
+    title?: AlgoliaHighlightResult;
+    summary?: AlgoliaHighlightResult;
+    content?: AlgoliaHighlightResult;
+    slug?: AlgoliaHighlightResult;
+  };
   [key: string]: unknown;
 }
 
@@ -30,6 +46,13 @@ interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const placeholders = [
+  "搜索文章标题...",
+  "尝试搜索: React",
+  "搜索关键词...",
+  "查找博客内容...",
+];
 
 // Safely access window with Algolia properties
 const getAlgoliaFromWindow = (): {
@@ -78,12 +101,6 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   // Animation related states and refs
   const [animating, setAnimating] = useState(false);
   const [currentPlaceholder, setCurrentPlaceholder] = useState(0);
-  const placeholders = [
-    "搜索文章标题...",
-    "尝试搜索: React",
-    "搜索关键词...",
-    "查找博客内容...",
-  ];
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Define types for animation data
@@ -103,27 +120,35 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const newDataRef = useRef<AnimationPoint[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Placeholder animation
-  const startAnimation = () => {
-    intervalRef.current = setInterval(() => {
-      setCurrentPlaceholder((prev) => (prev + 1) % placeholders.length);
-    }, 3000);
-  };
-
-  const handleVisibilityChange = () => {
-    if (document.visibilityState !== "visible" && intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    } else if (document.visibilityState === "visible") {
-      startAnimation();
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) {
-      startAnimation();
-      document.addEventListener("visibilitychange", handleVisibilityChange);
+    if (!isOpen) {
+      return;
     }
+
+    const startAnimation = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      intervalRef.current = setInterval(() => {
+        setCurrentPlaceholder((prev) => (prev + 1) % placeholders.length);
+      }, 3000);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      } else {
+        if (!intervalRef.current) {
+          startAnimation();
+        }
+      }
+    };
+
+    startAnimation();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       if (intervalRef.current) {
@@ -379,13 +404,20 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
         });
 
         // Format results
-        const formattedResults: SearchResultItem[] = hits.map((hit) => ({
-          objectID: hit.objectID,
-          title: hit.title || "No title",
-          summary: hit.summary || hit.Summary || "摘要不可用", // 兼容大小写
-          Slug: `${hit.slug || hit.Slug || hit.objectID}`,
-          imageUrl: hit.imageUrl || hit.coverImage || undefined,
-        }));
+        const formattedResults: SearchResultItem[] = hits.map(
+          (hit: AlgoliaHit) => ({
+            objectID: hit.objectID,
+            title:
+              hit._highlightResult?.title?.value || hit.title || "No title",
+            summary:
+              hit._highlightResult?.summary?.value ||
+              hit.summary ||
+              hit.Summary ||
+              "摘要不可用",
+            Slug: `${hit.slug || hit.Slug || hit.objectID}`,
+            imageUrl: hit.imageUrl || hit.coverImage || undefined,
+          })
+        );
 
         setSearchResults(formattedResults);
       } else {

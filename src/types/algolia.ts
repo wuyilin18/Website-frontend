@@ -23,25 +23,3 @@ export interface AlgoliaPodcast {
   listens?: number;
   [key: string]: unknown;
 }
-
-// Type for Algolia index
-export interface AlgoliaSearchIndex {
-  search: <T>(
-    query: string,
-    options?: Record<string, unknown>
-  ) => Promise<AlgoliaSearchResponse<T>>;
-  getObject: <T>(objectID: string) => Promise<T>;
-}
-
-// Type for Algolia client
-export interface AlgoliaSearchClient {
-  initIndex: (indexName: string) => AlgoliaSearchIndex;
-}
-
-// Extend global Window interface
-declare global {
-  interface Window {
-    algoliasearch?: (appId: string, apiKey: string) => AlgoliaSearchClient;
-    algoliaIndex?: AlgoliaSearchIndex;
-  }
-}

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image"; // 添加 Image 导入
 import { FiArrowLeft, FiClock, FiCalendar, FiHeadphones } from "react-icons/fi";
 import { AlgoliaPodcast } from "@/types/algolia";
 import { AlgoliaPreloader } from "@/components/Search/AlgoliaPreloader";
@@ -19,14 +20,8 @@ export default function PodcastDetailPage() {
   const apiKey = "378c7137eca8f2b7a6625599c691fa2f";
   const indexName = "algolia_podcast_sample_dataset";
 
-  useEffect(() => {
-    // Only fetch podcast when Algolia is ready and we have an ID
-    if (algoliaReady && id) {
-      fetchPodcast();
-    }
-  }, [id, algoliaReady]);
-
-  const fetchPodcast = async () => {
+  // 使用 useCallback 包装 fetchPodcast 函数
+  const fetchPodcast = useCallback(async () => {
     if (!id) {
       setError("Podcast ID is missing");
       setIsLoading(false);
@@ -73,7 +68,14 @@ export default function PodcastDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]); // 依赖于 id
+
+  useEffect(() => {
+    // Only fetch podcast when Algolia is ready and we have an ID
+    if (algoliaReady && id) {
+      fetchPodcast();
+    }
+  }, [id, algoliaReady, fetchPodcast]); // 添加 fetchPodcast 到依赖数组
 
   if (isLoading) {
     return (
@@ -133,10 +135,14 @@ export default function PodcastDetailPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
         {podcast.imageUrl && (
           <div className="w-full h-64 md:h-80 bg-gray-200 dark:bg-gray-700 relative overflow-hidden">
-            <img
+            {/* 替换 img 为 Image 组件 */}
+            <Image
               src={podcast.imageUrl}
               alt={podcast.title}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              priority // 由于这是主要内容图片，添加 priority
             />
           </div>
         )}

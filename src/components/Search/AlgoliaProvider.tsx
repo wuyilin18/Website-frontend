@@ -71,10 +71,10 @@ export function AlgoliaProvider({ children }: AlgoliaProviderProps) {
 
   return (
     <>
-      {/* Add Next.js Script component for reliable loading */}
+      {/* 修复：将 beforeInteractive 改为 afterInteractive */}
       <Script
         src="https://cdn.jsdelivr.net/npm/algoliasearch@4/dist/algoliasearch-lite.umd.js"
-        strategy="beforeInteractive"
+        strategy="afterInteractive"
         onLoad={() => {
           console.log("Algolia script loaded via Next.js Script");
           const win = window as WindowWithAlgolia;

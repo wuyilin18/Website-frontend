@@ -2,13 +2,29 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
+
+// 定义图片类型，替换 any
+interface StrapiImage {
+  url?: string;
+  data?: {
+    attributes?: {
+      url?: string;
+      alternativeText?: string;
+    };
+  };
+  attributes?: {
+    url?: string;
+    alternativeText?: string;
+  };
+}
 
 interface ArticleCardProps {
   category: string | string[];
   title: string;
   date: string;
   tag: string | string[];
-  image?: string | any;
+  image?: string | StrapiImage | null; // 替换 any 类型
   slug: string;
   noShadow?: boolean;
 }
@@ -30,19 +46,23 @@ export default function ArticleCard({
     try {
       if (typeof image === "string") {
         coverImageUrl = image.startsWith("/") ? `${apiUrl}${image}` : image;
-      } else if (image.url) {
+      } else if (image && typeof image === "object") {
         // 直接访问 url 属性（Strapi 5.x 扁平结构）
-        coverImageUrl = image.url.startsWith("/")
-          ? `${apiUrl}${image.url}`
-          : image.url;
-      } else if (image.data?.attributes?.url) {
+        if ("url" in image && image.url) {
+          coverImageUrl = image.url.startsWith("/")
+            ? `${apiUrl}${image.url}`
+            : image.url;
+        }
         // Strapi 4.x 结构
-        const url = image.data.attributes.url;
-        coverImageUrl = url.startsWith("/") ? `${apiUrl}${url}` : url;
-      } else if (image.attributes?.url) {
+        else if (image.data?.attributes?.url) {
+          const url = image.data.attributes.url;
+          coverImageUrl = url.startsWith("/") ? `${apiUrl}${url}` : url;
+        }
         // 其他可能的结构
-        const url = image.attributes.url;
-        coverImageUrl = url.startsWith("/") ? `${apiUrl}${url}` : url;
+        else if (image.attributes?.url) {
+          const url = image.attributes.url;
+          coverImageUrl = url.startsWith("/") ? `${apiUrl}${url}` : url;
+        }
       }
     } catch (error) {
       console.error("处理封面图片时出错:", error);
@@ -58,7 +78,7 @@ export default function ArticleCard({
     title,
     originalImage: image,
     imageType: typeof image,
-    imageKeys: image ? Object.keys(image) : [],
+    imageKeys: image && typeof image === "object" ? Object.keys(image) : [],
     finalUrl: coverImageUrl,
   });
 
@@ -75,12 +95,13 @@ export default function ArticleCard({
         }}
       >
         <div className="relative">
-          {/* 文章图片 */}
+          {/* 文章图片 - 替换为 Next.js Image 组件 */}
           <div className="h-48 overflow-hidden relative bg-gray-100 dark:bg-gray-700">
-            <img
+            <Image
               src={coverImageUrl}
               alt={title}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 group-hover:brightness-110"
+              fill
+              className="object-cover transition-transform duration-700 group-hover:scale-105 group-hover:brightness-110"
               onLoad={() => {
                 console.log("图片加载成功:", coverImageUrl);
               }}
@@ -91,6 +112,8 @@ export default function ArticleCard({
                 target.src = "https://cdn.wuyilin18.top/img/7245943.png";
               }}
               loading="lazy"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              quality={75}
             />
 
             {/* 悬浮时的遮罩层 */}

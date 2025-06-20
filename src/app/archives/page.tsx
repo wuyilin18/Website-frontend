@@ -1,19 +1,36 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Timeline } from "@/components/AceternityUI/timeline";
 import { getPosts } from "@/lib/strapi";
 import Link from "next/link";
 import Image from "next/image";
 
+interface ProcessedPost {
+  id: number;
+  title: string;
+  slug: string;
+  date: string;
+  summary?: string;
+  coverImage?: string;
+}
+
+interface TimelineData {
+  title: string;
+  content: React.ReactNode;
+}
+
 export default function Archives() {
   const [animate, setAnimate] = useState(false);
-  const [timelineData, setTimelineData] = useState<any[]>([]);
+  const [timelineData, setTimelineData] = useState<TimelineData[]>([]);
 
-  useEffect(() => {
+  // 使用 useCallback 包装动画函数
+  const startAnimation = useCallback(() => {
     setTimeout(() => setAnimate(true), 300);
+  }, []);
 
-    // 获取文章数据
-    async function fetchData() {
+  // 使用 useCallback 包装数据获取函数
+  const fetchData = useCallback(async () => {
+    try {
       const postsData = await getPosts({
         fields: ["Title", "Slug", "PublishDate", "Summary"],
         populate: "*", // 先获取所有字段来查看结构
@@ -27,60 +44,163 @@ export default function Archives() {
         console.log("First post attributes:", postsData.data[0].attributes);
       }
 
-      // 处理数据，按年份分组
-      const posts = (postsData?.data || []).map((post: any) => {
-        const attr = post.attributes || post;
+      // 处理数据，按年份分组 - 使用通用类型避免类型冲突
+      const posts: ProcessedPost[] = (postsData?.data || []).map(
+        (post: unknown) => {
+          // 类型保护函数
+          const isValidPost = (
+            item: unknown
+          ): item is Record<string, unknown> => {
+            return typeof item === "object" && item !== null;
+          };
 
-        // 尝试多种可能的封面图字段路径
-        let coverImage = null;
-
-        // 尝试不同的字段名称和路径
-        const possiblePaths = [
-          attr.CoverImage?.data?.attributes?.url,
-          attr.cover?.data?.attributes?.url,
-          attr.coverImage?.data?.attributes?.url,
-          attr.Cover?.data?.attributes?.url,
-          attr.featured_image?.data?.attributes?.url,
-          attr.image?.data?.attributes?.url,
-          // 如果是数组形式
-          attr.CoverImage?.data?.[0]?.attributes?.url,
-          attr.cover?.data?.[0]?.attributes?.url,
-          // 直接路径
-          attr.CoverImage?.url,
-          attr.cover?.url,
-          attr.coverImage?.url,
-        ];
-
-        for (const path of possiblePaths) {
-          if (path) {
-            coverImage = path;
-            break;
+          if (!isValidPost(post)) {
+            return {
+              id: 0,
+              title: "无效文章",
+              slug: "",
+              date: "",
+              summary: "",
+              coverImage: undefined,
+            };
           }
+
+          // 安全地获取 ID
+          const id = typeof post.id === "number" ? post.id : 0;
+
+          // 安全地获取属性，优先从 attributes 获取，如果没有则从根级别获取
+          const getPostAttribute = (key: string): unknown => {
+            const attributes = post.attributes as
+              | Record<string, unknown>
+              | undefined;
+            if (attributes && key in attributes) {
+              return attributes[key];
+            }
+            // 备用：从根级别获取
+            return post[key as keyof typeof post];
+          };
+
+          const title = String(getPostAttribute("Title") || "无标题");
+          const slug = String(getPostAttribute("Slug") || "");
+          const publishDate = String(getPostAttribute("PublishDate") || "");
+          const summary = getPostAttribute("Summary")
+            ? String(getPostAttribute("Summary"))
+            : undefined;
+
+          // 尝试多种可能的封面图字段路径
+          let coverImage: string | undefined = undefined;
+
+          // 修改后的辅助函数：安全地获取图片URL
+          const getImageUrl = (field: unknown): string | undefined => {
+            if (!field || field === null || field === undefined) {
+              return undefined;
+            }
+
+            // 如果是字符串，直接返回
+            if (typeof field === "string") {
+              return field;
+            }
+
+            // 如果是对象，尝试获取 URL
+            if (typeof field === "object") {
+              const fieldObj = field as Record<string, unknown>;
+
+              // 直接的 url 属性
+              if (typeof fieldObj.url === "string") {
+                return fieldObj.url;
+              }
+
+              // Strapi 媒体对象结构：field.attributes.url
+              const attributes = fieldObj.attributes as
+                | Record<string, unknown>
+                | undefined;
+              if (attributes && typeof attributes.url === "string") {
+                return attributes.url;
+              }
+
+              // 尝试从 formats 中获取
+              if (
+                attributes &&
+                typeof attributes.formats === "object" &&
+                attributes.formats
+              ) {
+                const formats = attributes.formats as Record<string, unknown>;
+                // 尝试获取不同尺寸的图片
+                for (const size of ["medium", "small", "thumbnail"]) {
+                  const format = formats[size] as
+                    | Record<string, unknown>
+                    | undefined;
+                  if (format && typeof format.url === "string") {
+                    return format.url;
+                  }
+                }
+              }
+
+              // 尝试从 data 字段获取
+              if (fieldObj.data) {
+                const data = fieldObj.data;
+                if (Array.isArray(data) && data.length > 0) {
+                  return getImageUrl(data[0]);
+                } else if (typeof data === "object") {
+                  return getImageUrl(data);
+                }
+              }
+            }
+
+            return undefined;
+          };
+
+          // 尝试不同的字段名称
+          const imageFields = [
+            getPostAttribute("CoverImage"),
+            getPostAttribute("cover"),
+            getPostAttribute("coverImage"),
+            getPostAttribute("Cover"),
+            getPostAttribute("featured_image"),
+            getPostAttribute("image"),
+          ];
+
+          for (const field of imageFields) {
+            const url = getImageUrl(field);
+            if (url) {
+              coverImage = url;
+              break;
+            }
+          }
+
+          console.log(`Post ${id} cover image:`, coverImage);
+
+          return {
+            id,
+            title,
+            slug,
+            date: publishDate,
+            summary,
+            coverImage,
+          };
         }
+      );
 
-        console.log(`Post ${post.id} cover image:`, coverImage);
-
-        return {
-          id: post.id,
-          title: attr.Title,
-          slug: attr.Slug,
-          date: attr.PublishDate,
-          summary: attr.Summary,
-          coverImage: coverImage,
-        };
-      });
+      // 过滤掉没有必要信息的文章
+      const validPosts = posts.filter(
+        (post) => post.title && post.slug && post.date && post.id > 0
+      );
 
       // 按年份分组
-      const yearMap: Record<string, any[]> = {};
-      posts.forEach((post) => {
+      const yearMap: Record<string, ProcessedPost[]> = {};
+      validPosts.forEach((post) => {
         if (!post.date) return;
-        const year = new Date(post.date).getFullYear();
-        if (!yearMap[year]) yearMap[year] = [];
-        yearMap[year].push(post);
+        try {
+          const year = new Date(post.date).getFullYear().toString();
+          if (!yearMap[year]) yearMap[year] = [];
+          yearMap[year].push(post);
+        } catch {
+          console.warn(`Invalid date for post ${post.id}:`, post.date);
+        }
       });
 
       // 组装 Timeline 需要的数据
-      const data = Object.keys(yearMap)
+      const data: TimelineData[] = Object.keys(yearMap)
         .sort((a, b) => Number(b) - Number(a))
         .map((year) => ({
           title: year,
@@ -111,7 +231,7 @@ export default function Archives() {
                           width={144}
                           height={144}
                           className="w-full h-full object-cover rounded-lg shadow-md group-hover:shadow-lg transition-shadow duration-300"
-                          onError={(e) => {
+                          onError={() => {
                             console.log(
                               `Image load error for post ${post.id}:`,
                               post.coverImage
@@ -166,10 +286,16 @@ export default function Archives() {
         }));
 
       setTimelineData(data);
+    } catch (error) {
+      console.error("获取文章数据失败:", error);
     }
+  }, []); // 空依赖数组，因为函数内部没有依赖任何 props 或 state
 
+  // 修复 useEffect 依赖问题
+  useEffect(() => {
+    startAnimation();
     fetchData();
-  }, []);
+  }, [startAnimation, fetchData]); // 添加正确的依赖项
 
   return (
     <div className="min-h-screen w-full pt-28 md:pt-32 pb-20 px-4 bg-gradient-to-b from-[#f5f7fa] to-[#f7f9f7] dark:from-[#2a2c31] dark:to-[#232528] transition-colors duration-500">
@@ -334,6 +460,7 @@ export default function Archives() {
       `,
         }}
       />
+      {/* 其余 JSX 代码保持不变 */}
       <div className="mx-auto max-w-screen-xl px-6 sm:px-10 md:px-16 lg:px-20">
         <div
           className={`text-center mb-10 opacity-0 ${

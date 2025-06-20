@@ -15,20 +15,240 @@ import {
 import FullMusicPlayer from "@/components/FullMusicPlayerWrapper";
 import { getRelatedPosts } from "@/lib/strapi";
 import { RelatedPosts } from "@/components/post/RelatedPosts";
+import Image from "next/image";
+
+// 类型定义
+
+// 封面图片的灵活类型定义
+type FlexibleCoverImage = {
+  url?: string;
+  attributes?: {
+    url?: string;
+  };
+  data?: {
+    attributes?: {
+      url?: string;
+    };
+  };
+} | null;
 
 type Params = {
   slug: string;
 };
-type Category = { id: number; name: string };
-type Tag = { id: number; name: string };
 
-function checkApiUrl() {
+type Category = {
+  id: number;
+  name: string;
+};
+
+type Tag = {
+  id: number;
+  name: string;
+};
+
+interface SimpleTag {
+  id: number;
+  name: string;
+}
+
+interface StrapiTag {
+  id: number;
+  attributes?: {
+    name: string;
+  };
+  name?: string;
+}
+
+interface StrapiTagsResponse {
+  data: StrapiTag[];
+}
+
+type TaxonomyData =
+  | SimpleTag[]
+  | StrapiTag[]
+  | StrapiTagsResponse
+  | undefined
+  | null;
+
+// RelatedPosts 组件期望的 Post 类型
+interface RelatedPost {
+  id: number;
+  Title?: string;
+  Summary?: string;
+  slug?: string;
+  Slug?: string;
+  PublishDate?: string;
+  CoverImage?: import("@/lib/strapi").StrapiMediaObject | null;
+  tags?: SimpleTag[];
+  categories?: SimpleTag[];
+}
+
+// 工具函数
+function checkApiUrl(): string {
   const apiUrl =
     process.env.NEXT_PUBLIC_STRAPI_URL || process.env.STRAPI_API_URL;
   if (!apiUrl) {
     console.warn("Strapi API URL 环境变量未设置，使用默认值");
   }
   return apiUrl || "http://localhost:1337";
+}
+
+function getStringValue(value: unknown, fallback: string = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+// 类型守卫函数
+function isStrapiTaxonomyResponse(
+  data: TaxonomyData
+): data is StrapiTagsResponse {
+  return (
+    data !== null &&
+    data !== undefined &&
+    typeof data === "object" &&
+    "data" in data &&
+    Array.isArray(data.data)
+  );
+}
+
+function isSimpleTaxonomyArray(data: TaxonomyData): data is SimpleTag[] {
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    "name" in data[0] &&
+    typeof data[0].name === "string" &&
+    "id" in data[0] &&
+    typeof data[0].id === "number"
+  );
+}
+
+function isStrapiTaxonomyArray(data: TaxonomyData): data is StrapiTag[] {
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    (("attributes" in data[0] &&
+      data[0].attributes !== undefined &&
+      typeof data[0].attributes.name === "string") ||
+      ("name" in data[0] && typeof data[0].name === "string"))
+  );
+}
+
+// 分类和标签的格式化函数
+function formatTaxonomy(taxonomy: unknown): SimpleTag[] {
+  if (!taxonomy) return [];
+
+  try {
+    const taxonomyData = taxonomy as TaxonomyData;
+
+    // 如果是 Strapi 响应格式 { data: [...] }
+    if (isStrapiTaxonomyResponse(taxonomyData)) {
+      return taxonomyData.data.map((item, index) => ({
+        id: item.id || index,
+        name: item.attributes?.name || item.name || "未命名",
+      }));
+    }
+
+    // 如果是简单标签/分类数组
+    if (isSimpleTaxonomyArray(taxonomyData)) {
+      return taxonomyData;
+    }
+
+    // 如果是 Strapi 标签/分类数组
+    if (isStrapiTaxonomyArray(taxonomyData)) {
+      return taxonomyData.map((item, index) => ({
+        id: item.id || index,
+        name: item.attributes?.name || item.name || "未命名",
+      }));
+    }
+
+    return [];
+  } catch (error) {
+    console.error("处理分类/标签数据时出错:", error);
+    return [];
+  }
+}
+
+// 验证相关文章的有效性 - 修复后的版本
+function isValidRelatedPost(post: unknown): boolean {
+  console.log("验证文章数据:", post);
+
+  if (!post || typeof post !== "object") {
+    console.log("文章数据不是对象");
+    return false;
+  }
+
+  const p = post as Record<string, unknown>;
+
+  // 检查必需字段
+  if (typeof p.id !== "number") {
+    console.log("文章缺少有效的 id");
+    return false;
+  }
+
+  // 检查 slug 字段（getRelatedPosts返回的是扁平化结构，直接检查slug属性）
+  const slug = p.slug;
+  if (
+    !slug ||
+    typeof slug !== "string" ||
+    slug === "undefined" ||
+    !slug.trim()
+  ) {
+    console.log("文章缺少有效的 slug:", {
+      slug: p.slug,
+    });
+    return false;
+  }
+
+  console.log("文章验证通过:", p.id, slug);
+  return true;
+}
+
+// 安全地从未知数据中提取字符串值
+function safeExtractString(value: unknown, fallback: string = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+// 安全地从未知数据中提取标签数组
+function safeExtractTags(tags: unknown): SimpleTag[] {
+  if (!Array.isArray(tags)) return [];
+
+  return tags.map((tag, index) => {
+    if (tag && typeof tag === "object") {
+      const tagObj = tag as Record<string, unknown>;
+      return {
+        id: typeof tagObj.id === "number" ? tagObj.id : index,
+        name: safeExtractString(tagObj.name, "未知标签"),
+      };
+    }
+    return { id: index, name: "未知标签" };
+  });
+}
+
+// 转换原始文章数据为 RelatedPost 格式 - 修复后的版本
+function convertToRelatedPost(rawPost: unknown): RelatedPost {
+  const post = rawPost as Record<string, unknown>;
+  const validSlug = safeExtractString(post.slug, "");
+
+  console.log("转换文章数据:", {
+    id: post.id,
+    title: post.Title,
+    slug: validSlug,
+    tags: post.tags,
+    categories: post.categories,
+  });
+
+  return {
+    id: typeof post.id === "number" ? post.id : 0,
+    Title: safeExtractString(post.Title),
+    Summary: safeExtractString(post.Summary),
+    slug: validSlug,
+    Slug: validSlug,
+    PublishDate: safeExtractString(post.PublishDate),
+    CoverImage: post.CoverImage as
+      | import("@/lib/strapi").StrapiMediaObject
+      | null,
+    tags: safeExtractTags(post.tags),
+    categories: safeExtractTags(post.categories),
+  };
 }
 
 export async function generateMetadata({
@@ -49,12 +269,16 @@ export async function generateMetadata({
     };
   }
 
+  const title = getStringValue(post.Title, "无标题");
+  const summary = getStringValue(post.Summary);
+  const description = summary || title;
+
   return {
-    title: post.Title,
-    description: post.Summary || post.Title,
+    title: title,
+    description: description,
     openGraph: {
-      title: `${post.Title} | 十八加十八`,
-      description: post.Summary || post.Title,
+      title: `${title} | 十八加十八`,
+      description: description,
     },
   };
 }
@@ -77,7 +301,7 @@ export default async function ArticlePage({
       <div className="container mx-auto py-10 px-4">
         <h1 className="text-3xl font-bold mb-6">文章不存在</h1>
         <p>
-          找不到请求的文章 "{resolvedParams.slug}"，请返回
+          找不到请求的文章 &quot;{resolvedParams.slug}&quot;，请返回
           <Link href="/posts" className="text-blue-500 hover:underline ml-1">
             文章列表
           </Link>
@@ -86,20 +310,22 @@ export default async function ArticlePage({
     );
   }
 
+  // 安全地获取文章属性
+  const title = getStringValue(post.Title, "无标题");
+  const summary = getStringValue(post.Summary);
+  const publishDate = getStringValue(post.PublishDate);
+
   // 封面图片处理
   let coverImageUrl = "https://cdn.wuyilin18.top/img/7245943.png";
   if (post.CoverImage) {
     try {
-      if (typeof post.CoverImage === "string") {
-        coverImageUrl = post.CoverImage.startsWith("/")
-          ? `${apiUrl}${post.CoverImage}`
-          : post.CoverImage;
-      } else if (post.CoverImage.url) {
-        coverImageUrl = post.CoverImage.url.startsWith("/")
-          ? `${apiUrl}${post.CoverImage.url}`
-          : post.CoverImage.url;
-      } else if (post.CoverImage.data?.attributes?.url) {
-        const url = post.CoverImage.data.attributes.url;
+      const coverImage = post.CoverImage as FlexibleCoverImage;
+      const url =
+        coverImage?.data?.attributes?.url ||
+        coverImage?.attributes?.url ||
+        coverImage?.url;
+
+      if (url && typeof url === "string") {
         coverImageUrl = url.startsWith("/") ? `${apiUrl}${url}` : url;
       }
     } catch (error) {
@@ -107,34 +333,50 @@ export default async function ArticlePage({
     }
   }
 
-  const categories: Category[] = post.categories || [];
-  const tags: Tag[] = post.tags || [];
+  // 安全地处理分类和标签
+  const categories: Category[] = formatTaxonomy(post.categories);
+  const tags: Tag[] = formatTaxonomy(post.tags);
 
   // 获取相关文章
-  const tagNames = tags.map((tag) => tag.name);
+  const tagNames = tags
+    .map((tag) => getStringValue(tag.name, ""))
+    .filter((name) => name !== "");
 
-  // 添加调试日志和数据校验
   console.log("文章数据:", {
-    title: post.Title,
-    slug: post.Slug,
-    slug_lowercase: post.slug,
+    title: title,
+    slug: getStringValue(post.Slug),
     tags: tagNames,
   });
 
-  // 使用正确的字段名 (Slug 而不是 slug)
-  const currentSlug = post.Slug || post.slug || resolvedParams.slug;
+  const currentSlug = getStringValue(post.Slug) || resolvedParams.slug;
   console.log("使用的 slug:", currentSlug);
 
-  const relatedPosts =
+  const rawRelatedPosts =
     currentSlug && tagNames.length > 0
       ? await getRelatedPosts(currentSlug, tagNames, 2)
       : [];
 
-  console.log("获取到的相关文章数量:", relatedPosts.length);
+  console.log("获取到的相关文章数量:", rawRelatedPosts.length);
+  console.log("原始相关文章数据:", rawRelatedPosts);
+
+  // 处理相关文章数据 - 使用修复后的函数
+  const processedRelatedPosts: RelatedPost[] = rawRelatedPosts
+    .filter((rawPost) => {
+      const isValid = isValidRelatedPost(rawPost);
+      console.log("文章验证结果:", rawPost, "→", isValid);
+      return isValid;
+    })
+    .map((validPost) => {
+      const converted = convertToRelatedPost(validPost);
+      console.log("文章转换结果:", validPost, "→", converted);
+      return converted;
+    });
+
+  console.log("处理后的相关文章数量:", processedRelatedPosts.length);
 
   return (
     <div className="min-h-screen w-full pt-28 md:pt-32 pb-20 bg-gradient-to-b from-[#f5f7fa] to-[#f7f9f7] dark:from-[#2a2c31] dark:to-[#232528] transition-colors duration-500">
-      {/* CSS样式保持不变 */}
+      {/* CSS样式保持不变... */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -150,28 +392,146 @@ export default async function ArticlePage({
           0% { transform: scale(0.9); opacity: 0; }
           100% { transform: scale(1); opacity: 1; }
         }
+        @keyframes rotateIn {
+          0% { transform: rotate(-5deg) scale(0.95); opacity: 0; }
+          100% { transform: rotate(0) scale(1); opacity: 1; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0% { transform: scale(1); opacity: 0.8; }
+          50% { transform: scale(1.05); opacity: 1; }
+          100% { transform: scale(1); opacity: 0.8; }
+        }
+        @keyframes float {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+          100% { transform: translateY(0px); }
+        }
+        @keyframes circuitFlow {
+          0% { stroke-dashoffset: 100; }
+          100% { stroke-dashoffset: 0; }
+        }
+        @keyframes cloudDrift {
+          0% { transform: translateX(0) translateY(0); }
+          50% { transform: translateX(10px) translateY(-5px); }
+          100% { transform: translateX(0) translateY(0); }
+        }
+        @keyframes inkSpread {
+          0% { transform: scale(0.95); opacity: 0.7; filter: blur(2px); }
+          50% { transform: scale(1.02); opacity: 0.9; filter: blur(1px); }
+          100% { transform: scale(1); opacity: 1; filter: blur(0); }
+        }
+        @keyframes inkDrop {
+          0% { transform: scale(0); opacity: 0; }
+          40% { transform: scale(1.1); opacity: 0.7; }
+          100% { transform: scale(1); opacity: 0.4; }
+        }
+        @keyframes inkStroke {
+          0% { stroke-dashoffset: 1000; opacity: 0.3; }
+          100% { stroke-dashoffset: 0; opacity: 0.7; }
+        }
+        @keyframes bambooSway {
+          0% { transform: rotate(-1deg); }
+          50% { transform: rotate(1deg); }
+          100% { transform: rotate(-1deg); }
+        }
+        @keyframes circuitBlink {
+          0%, 100% { opacity: 0.7; }
+          50% { opacity: 1; }
+        }
+        @keyframes circuitPulse {
+          0% { stroke-width: 1; opacity: 0.7; }
+          50% { stroke-width: 1.5; opacity: 1; }
+          100% { stroke-width: 1; opacity: 0.7; }
+        }
+        @keyframes ledBlink {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.9; }
+        }
+        @keyframes dataFlow {
+          0% { stroke-dashoffset: 20; }
+          100% { stroke-dashoffset: 0; }
+        }
+        @keyframes cardFloat {
+          0% { transform: translateY(0px) scale(1); }
+          50% { transform: translateY(-5px) scale(1.02); }
+          100% { transform: translateY(0px) scale(1); }
+        }
         .animate-float-up {
           animation: floatUp 0.8s ease-out forwards;
         }
         .animate-scale-in {
           animation: scaleIn 0.8s ease-out forwards;
         }
-        /* 其他动画样式... */
-        `,
+        .animate-rotate-in {
+          animation: rotateIn 0.8s ease-out forwards;
+        }
+        .animate-spin {
+          animation: spin 8s linear infinite;
+        }
+        .animate-pulse {
+          animation: pulse 2s ease-in-out infinite;
+        }
+        .animate-float {
+          animation: float 3s ease-in-out infinite;
+        }
+        .animate-circuit {
+          stroke-dasharray: 100;
+          animation: circuitFlow 3s linear infinite;
+        }
+        .animate-cloud {
+          animation: cloudDrift 8s ease-in-out infinite;
+        }
+        .animate-ink-spread {
+          animation: inkSpread 3s ease-in-out infinite;
+        }
+        .animate-ink-drop {
+          animation: inkDrop 2s ease-out forwards;
+        }
+        .animate-ink-stroke {
+          stroke-dasharray: 1000;
+          stroke-dashoffset: 1000;
+          animation: inkStroke 2s ease-out forwards;
+        }
+        .animate-bamboo-sway {
+          animation: bambooSway 5s ease-in-out infinite;
+        }
+        .animate-circuit-blink {
+          animation: circuitBlink 4s ease-in-out infinite;
+        }
+        .animate-circuit-pulse {
+          animation: circuitPulse 3s ease-in-out infinite;
+        }
+        .animate-led-blink {
+          animation: ledBlink 2s ease-in-out infinite;
+        }
+        .animate-data-flow {
+          stroke-dasharray: 4, 2;
+          animation: dataFlow 2s linear infinite;
+        }
+        .animate-card-float {
+          animation: cardFloat 4s ease-in-out infinite;
+        }
+        
+        /* 其他样式保持不变... */
+      `,
         }}
       />
 
-      {/* 背景装饰保持不变 */}
+      {/* 背景装饰 */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        {/* 背景装饰代码保持不变 */}
+        {/* 背景装饰可以在这里添加 */}
       </div>
 
       <div className="container mx-auto px-4">
-        {/* 新的布局结构 */}
+        {/* 布局结构 */}
         <div className="flex flex-col xl:flex-row gap-8 max-w-7xl mx-auto">
           {/* 主内容区域 */}
           <div className="flex-1 min-w-0">
-            {/* 文章内容区域 - 使用 TracingBeam 包裹 */}
+            {/* 文章内容区域 */}
             <ArticleTimeline>
               <div
                 id="article-content"
@@ -190,11 +550,11 @@ export default async function ArticlePage({
                 {/* 文章头部 */}
                 <div className="mb-8 relative z-10">
                   <h1 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-[#505050] to-[#808080] dark:from-[#a0a0a0] dark:to-[#d0d0d0] animate-float-up">
-                    {post.Title}
+                    {title}
                   </h1>
 
                   {/* 发布时间 */}
-                  {post.PublishDate && (
+                  {publishDate && (
                     <div
                       className="text-gray-500 dark:text-gray-400 mb-4 animate-float-up"
                       style={{ animationDelay: "0.1s" }}
@@ -214,7 +574,7 @@ export default async function ArticlePage({
                           />
                         </svg>
                         发布时间:{" "}
-                        {new Date(post.PublishDate).toLocaleDateString("zh-CN")}
+                        {new Date(publishDate).toLocaleDateString("zh-CN")}
                       </span>
                     </div>
                   )}
@@ -233,11 +593,11 @@ export default async function ArticlePage({
                           <Link
                             key={category.id}
                             href={`/categories/${encodeURIComponent(
-                              category.name
+                              getStringValue(category.name, "")
                             )}`}
                             className="px-4 py-2 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 text-green-800 dark:text-green-300 rounded-full text-sm font-medium hover:from-green-100 hover:to-green-200 dark:hover:from-green-800/30 dark:hover:to-green-700/30 transition-all duration-300 transform hover:scale-105 hover:shadow-md"
                           >
-                            {category.name}
+                            {getStringValue(category.name, "未知分类")}
                           </Link>
                         ))}
                       </div>
@@ -257,10 +617,12 @@ export default async function ArticlePage({
                         {tags.map((tag) => (
                           <Link
                             key={tag.id}
-                            href={`/tags/${encodeURIComponent(tag.name)}`}
+                            href={`/tags/${encodeURIComponent(
+                              getStringValue(tag.name, "")
+                            )}`}
                             className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 rounded-full text-sm hover:bg-gray-200 dark:hover:bg-gray-600/50 transition-all duration-300 transform hover:scale-105 border border-gray-200 dark:border-gray-600"
                           >
-                            #{tag.name}
+                            #{getStringValue(tag.name, "未知标签")}
                           </Link>
                         ))}
                       </div>
@@ -274,21 +636,18 @@ export default async function ArticlePage({
                     className="mb-10 rounded-xl overflow-hidden shadow-lg animate-scale-in"
                     style={{ animationDelay: "0.4s" }}
                   >
-                    <PostImage
-                      src={coverImageUrl}
-                      alt={post.Title || "文章封面"}
-                    />
+                    <PostImage src={coverImageUrl} alt={title || "文章封面"} />
                   </div>
                 )}
 
                 {/* 文章摘要 */}
-                {post.Summary && (
+                {summary && (
                   <div
                     className="mb-10 p-6 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700/30 dark:to-gray-600/30 rounded-xl border-l-4 border-green-500 dark:border-green-400 animate-float-up"
                     style={{ animationDelay: "0.5s" }}
                   >
                     <p className="text-gray-700 dark:text-gray-300 italic text-lg leading-relaxed">
-                      {post.Summary}
+                      {summary}
                     </p>
                   </div>
                 )}
@@ -312,9 +671,11 @@ export default async function ArticlePage({
                               key={idx}
                               className="my-8 rounded-lg overflow-hidden shadow-md"
                             >
-                              <img
+                              <Image
                                 src={line}
                                 alt=""
+                                width={800}
+                                height={600}
                                 className="w-full max-w-3xl mx-auto"
                               />
                             </div>
@@ -339,9 +700,11 @@ export default async function ArticlePage({
                                 key={idx}
                                 className="my-8 rounded-lg overflow-hidden shadow-md"
                               >
-                                <img
+                                <Image
                                   src={line}
                                   alt=""
+                                  width={800}
+                                  height={600}
                                   className="w-full max-w-3xl mx-auto"
                                 />
                               </div>
@@ -364,12 +727,17 @@ export default async function ArticlePage({
                   </div>
                 </div>
 
-                {/* 在文章内容结束后，评论区之前添加相关文章推荐 */}
-                {relatedPosts.length > 0 && (
-                  <RelatedPosts posts={relatedPosts} apiUrl={apiUrl} />
+                {/* 相关文章推荐 */}
+                {processedRelatedPosts.length > 0 && (
+                  <RelatedPosts
+                    posts={processedRelatedPosts}
+                    currentPostTags={tags}
+                    apiUrl={apiUrl}
+                    maxPosts={2}
+                  />
                 )}
 
-                {/* 底部装饰 */}
+                {/* 底部装饰等其他内容保持不变... */}
                 <div className="mt-16 pt-8 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-center space-x-4 text-gray-500 dark:text-gray-400">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">

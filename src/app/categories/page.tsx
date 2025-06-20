@@ -41,32 +41,19 @@ const Categories: React.FC = () => {
   const chartRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. 动态获取分类数据
+  // 1. 获取分类数据、启动进场动画和轮播
   useEffect(() => {
     async function fetchCategories() {
-      // 明确类型
-      type RawCategory = {
-        name?: string;
-        attributes?: { name?: string; posts?: { data?: unknown[] } };
-        posts?: unknown[];
-      };
-
       const categoriesData = await getCategories();
       const rawList: { name: string; count: number }[] =
-        (categoriesData?.data || []).map((cat: RawCategory) => {
-          const name = cat.name || cat.attributes?.name || "未命名";
-          const count = Array.isArray(cat.posts)
-            ? cat.posts.length
-            : cat.attributes?.posts?.data?.length || 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (categoriesData?.data || []).map((cat: any) => {
+          const name = cat.attributes?.name || "未命名";
+          const count = cat.attributes?.posts?.data?.attributes?.count || 0;
           return { name, count };
         }) || [];
 
-      // 计算总数和百分比
-      const total =
-        rawList.reduce(
-          (sum: number, c: { count: number }) => sum + c.count,
-          0
-        ) || 1;
+      const total = rawList.reduce((sum, c) => sum + c.count, 0) || 1;
       const list: CategoryData[] = rawList.map((cat, idx) => {
         const [color, gradientEnd] = COLOR_PALETTE[idx % COLOR_PALETTE.length];
         return {
@@ -76,32 +63,43 @@ const Categories: React.FC = () => {
           color,
           gradientStart: color,
           gradientEnd,
-          percentage: ((cat.count / total) * 100).toFixed(2) + "%",
+          percentage: `${((cat.count / total) * 100).toFixed(2)}%`,
           icon: ICONS[idx % ICONS.length],
         };
       });
       setCategories(list);
-      setVisibleCategories(list.map((cat) => cat.name));
+      setVisibleCategories(list.map((c) => c.name));
     }
+
     fetchCategories();
 
-    // 启动进场动画
-    setTimeout(() => setAnimate(true), 300);
-
-    // 启动轮播高亮
-    intervalRef.current = setInterval(() => {
-      if (!hoveredCategory && categories.length > 0) {
-        setActiveIndex((prev) => {
-          if (prev === null) return 0;
-          return (prev + 1) % categories.length;
-        });
-      }
-    }, 3000);
+    const timer = setTimeout(() => setAnimate(true), 300);
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      clearTimeout(timer);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     };
-    // eslint-disable-next-line
+  }, []);
+
+  // 3. 轮播高亮逻辑
+  useEffect(() => {
+    if (categories.length > 0 && !hoveredCategory) {
+      intervalRef.current = setInterval(() => {
+        setActiveIndex((prev) =>
+          prev === null ? 0 : (prev + 1) % categories.length
+        );
+      }, 3000);
+    } else if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
   }, [hoveredCategory, categories.length]);
   // 为每个分类创建渐变色定义
   const renderGradients = () => {
@@ -146,29 +144,11 @@ const Categories: React.FC = () => {
     ));
   };
 
-  // 初始化所有分类为可见 + 启动动画
+  // 处理鼠标离开图表区域的事件
   useEffect(() => {
-    setVisibleCategories(categories.map((cat) => cat.name));
-
-    // 启动进场动画
-    setTimeout(() => {
-      setAnimate(true);
-    }, 300);
-
-    // 启动循环动画，每隔一定时间轮换活跃扇形
-    intervalRef.current = setInterval(() => {
-      if (!hoveredCategory) {
-        setActiveIndex((prev) => {
-          if (prev === null) return 0;
-          return (prev + 1) % categories.length;
-        });
-      }
-    }, 3000);
-
-    // 添加鼠标离开扇形区域的监听
     const handleMouseLeave = () => {
       setShowCategoryCard(false);
-      setActiveIndex(null);
+      setHoveredCategory(null); // 确保在离开时清除悬停状态
     };
 
     const chartElement = chartRef.current;
@@ -177,14 +157,11 @@ const Categories: React.FC = () => {
     }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
       if (chartElement) {
         chartElement.removeEventListener("mouseleave", handleMouseLeave);
       }
     };
-  }, [hoveredCategory]);
+  }, []);
 
   // 处理鼠标移动，更新鼠标位置
   const handleMouseMove = (e: React.MouseEvent) => {

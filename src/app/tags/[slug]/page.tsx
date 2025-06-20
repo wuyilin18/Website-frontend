@@ -2,19 +2,20 @@ import { Metadata } from "next";
 import { getTagBySlug, getStrapiMedia } from "@/lib/strapi";
 import Link from "next/link";
 import Image from "next/image";
+import React from "react";
 
-// 定义参数类型
-type Params = {
+// 定义参数类型 - 修复：改为 Promise 类型
+type Params = Promise<{
   slug: string;
-};
+}>;
 
-// 定义Strapi媒体类型
-interface StrapiMedia {
-  data: {
-    attributes: {
-      url: string;
-      [key: string]: unknown;
-    };
+// 定义Strapi媒体对象类型，匹配getStrapiMedia函数的期望
+interface StrapiMediaObject {
+  [key: string]: unknown;
+  attributes?: {
+    [key: string]: unknown;
+    url?: string;
+    formats?: Record<string, { url: string }>;
   };
 }
 
@@ -26,8 +27,7 @@ interface Post {
   PublishDate: string;
   Summary?: string;
   Content?: string;
-  CoverImage?: StrapiMedia | any;
-  [key: string]: any;
+  CoverImage?: string | StrapiMediaObject | null;
 }
 
 // 定义标签类型
@@ -35,7 +35,6 @@ interface Tag {
   id: number;
   name: string;
   posts: Post[];
-  [key: string]: any;
 }
 
 // 为标签页面生成元数据
@@ -45,8 +44,10 @@ export async function generateMetadata({
   params: Params;
 }): Promise<Metadata> {
   try {
+    // 解析异步的 params
+    const { slug } = await params;
     // 确保对params.slug进行解码
-    const decodedSlug = decodeURIComponent(params.slug);
+    const decodedSlug = decodeURIComponent(slug);
     console.log("generateMetadata: 正在查询标签:", decodedSlug);
 
     const tag = await getTagBySlug(decodedSlug, {
@@ -76,9 +77,10 @@ export async function generateMetadata({
     };
   } catch (error) {
     console.error("generateMetadata: 生成标签元数据时出错:", error);
-    // 使用params.slug作为后备
+    // 修复：在 catch 块中也需要 await params
+    const { slug } = await params;
     return {
-      title: `#${params.slug} | 标签 | 十八加十八`,
+      title: `#${slug} | 标签 | 十八加十八`,
       description: `浏览带有标签的所有文章`,
     };
   }
@@ -86,9 +88,10 @@ export async function generateMetadata({
 
 export default async function TagPage({ params }: { params: Params }) {
   try {
+    const { slug } = await params;
     // 从Strapi API获取标签信息
     // 确保对params.slug进行解码
-    const decodedSlug = decodeURIComponent(params.slug);
+    const decodedSlug = decodeURIComponent(slug);
     console.log("正在查询标签:", decodedSlug);
 
     const tag = (await getTagBySlug(decodedSlug, {
@@ -361,7 +364,7 @@ export default async function TagPage({ params }: { params: Params }) {
           height: 25px;
           top: 25%;
           right: 15%;
-                    background: radial-gradient(circle at center, rgba(20, 20, 20, 0.4), rgba(20, 20, 20, 0.01));
+          background: radial-gradient(circle at center, rgba(20, 20, 20, 0.4), rgba(20, 20, 20, 0.01));
           filter: blur(6px);
           animation: float 8s ease-in-out infinite reverse;
         }
@@ -1002,10 +1005,33 @@ export default async function TagPage({ params }: { params: Params }) {
 }
 
 function ArticleCard({ post }: { post: Post }) {
-  // 获取封面图片URL
-  const coverImageUrl = post.CoverImage
-    ? getStrapiMedia(post.CoverImage)
-    : "https://cdn.wuyilin18.top/img/7245943.png"; // 默认封面图片
+  // 安全地获取封面图片URL
+  const getCoverImageUrl = (): string => {
+    if (!post.CoverImage) {
+      return "https://cdn.wuyilin18.top/img/7245943.png";
+    }
+
+    // 如果是字符串，直接返回
+    if (typeof post.CoverImage === "string") {
+      return post.CoverImage;
+    }
+
+    // 如果是null，返回默认图片
+    if (post.CoverImage === null) {
+      return "https://cdn.wuyilin18.top/img/7245943.png";
+    }
+
+    // 如果是对象，尝试使用getStrapiMedia函数
+    try {
+      const mediaUrl = getStrapiMedia(post.CoverImage);
+      return mediaUrl || "https://cdn.wuyilin18.top/img/7245943.png";
+    } catch (error) {
+      console.warn("获取封面图片失败:", error);
+      return "https://cdn.wuyilin18.top/img/7245943.png";
+    }
+  };
+
+  const coverImageUrl = getCoverImageUrl();
 
   // 格式化日期
   const publishDate = post.PublishDate
@@ -1013,12 +1039,12 @@ function ArticleCard({ post }: { post: Post }) {
     : "未知日期";
 
   return (
-    <Link href={`/posts/${post.Slug}`}>
+    <Link href={`/posts/${post.Slug}`} className="block h-full">
       <div className="h-full flex flex-col group">
         {/* 文章封面图片 */}
         <div className="relative h-48 w-full overflow-hidden rounded-t-xl">
           <Image
-            src={coverImageUrl || "https://cdn.wuyilin18.top/img/7245943.png"}
+            src={coverImageUrl}
             alt={post.Title}
             fill
             className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110"

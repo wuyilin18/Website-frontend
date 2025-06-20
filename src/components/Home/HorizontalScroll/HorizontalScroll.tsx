@@ -33,7 +33,6 @@ const HorizontalScroller = ({
   maxBorderWidth = 4,
   borderWidthRatio = 0.001,
   wheelSensitivity = 0.3,
-  scrollDuration = 300,
   pauseOnHover = true,
   fullWidthBorder = false,
   noPadding = false, // 默认有内部空隙
@@ -172,6 +171,8 @@ const HorizontalScroller = ({
     if (!isMounted) return;
 
     let observer: ResizeObserver | undefined;
+    // 修复1: 在effect内部保存containerRef.current的引用
+    const currentContainer = containerRef.current;
 
     // 确保ResizeObserver仅在客户端使用
     if (typeof ResizeObserver !== "undefined") {
@@ -184,8 +185,8 @@ const HorizontalScroller = ({
         checkScrollBoundaries();
       });
 
-      if (containerRef.current) {
-        observer.observe(containerRef.current);
+      if (currentContainer) {
+        observer.observe(currentContainer);
         if (!fullWidthBorder) {
           updateBorderWidth();
         }
@@ -193,8 +194,9 @@ const HorizontalScroller = ({
     }
 
     return () => {
-      if (observer && containerRef.current) {
-        observer.unobserve(containerRef.current);
+      // 修复1: 在清理函数中使用保存的引用
+      if (observer && currentContainer) {
+        observer.unobserve(currentContainer);
       }
     };
   }, [updateBorderWidth, isMounted, checkScrollBoundaries, fullWidthBorder]);
@@ -248,20 +250,24 @@ const HorizontalScroller = ({
         return newPos;
       });
     },
-    [wheelSensitivity, scrollDuration, reachedEnd]
+    // 修复2: 移除不必要的scrollDuration依赖
+    [wheelSensitivity, reachedEnd]
   );
 
   // 使用非被动事件监听器处理滚轮事件
   useEffect(() => {
-    if (!isMounted || !containerRef.current) return;
+    if (!isMounted) return;
 
-    const container = containerRef.current;
+    // 修复1: 在effect内部保存containerRef.current的引用
+    const currentContainer = containerRef.current;
+    if (!currentContainer) return;
 
     // 使用非被动事件监听器，允许preventDefault
-    container.addEventListener("wheel", handleWheel, { passive: false });
+    currentContainer.addEventListener("wheel", handleWheel, { passive: false });
 
     return () => {
-      container.removeEventListener("wheel", handleWheel);
+      // 修复1: 在清理函数中使用保存的引用
+      currentContainer.removeEventListener("wheel", handleWheel);
     };
   }, [isMounted, handleWheel]);
 
@@ -309,24 +315,30 @@ const HorizontalScroller = ({
         }}
       >
         {isMounted ? (
-          <img
-            ref={imageRef}
-            src={image}
-            alt="Horizontal scroller content"
-            className={styles.image}
-            style={{
-              display: "block",
-              maxWidth: "none",
-              height: "100%",
-              width: "auto",
-            }}
-            onLoad={(e) => {
-              const img = e.target as HTMLImageElement;
-              if (fullWidthBorder) {
-                setBorderWidth(img.naturalWidth);
-              }
-            }}
-          />
+          // 修复3: 将img标签替换为NextImage组件
+          <div style={{ position: "relative", height: "100%", width: "auto" }}>
+            <NextImage
+              ref={imageRef}
+              src={image}
+              alt="Horizontal scroller content"
+              className={styles.image}
+              width={0}
+              height={0}
+              sizes="100vw"
+              style={{
+                display: "block",
+                maxWidth: "none",
+                height: "100%",
+                width: "auto",
+              }}
+              onLoad={(e) => {
+                const img = e.target as HTMLImageElement;
+                if (fullWidthBorder) {
+                  setBorderWidth(img.naturalWidth);
+                }
+              }}
+            />
+          </div>
         ) : (
           <NextImage
             src={image}

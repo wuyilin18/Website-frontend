@@ -4,27 +4,77 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getTags } from "@/lib/strapi";
 
+// 使用与 strapi.ts 兼容的类型定义
+interface ProcessedTag {
+  name: string;
+  count: number;
+}
+
 const Tags: React.FC = () => {
   const [animate, setAnimate] = useState(false);
   const [hoveredTag, setHoveredTag] = useState<string | null>(null);
   const [visibleTags, setVisibleTags] = useState<string[]>([]);
-  const [tags, setTags] = useState<{ name: string; count: number }[]>([]);
+  const [tags, setTags] = useState<ProcessedTag[]>([]);
 
   // 获取标签数据
   useEffect(() => {
     async function fetchTags() {
-      const tagsData = await getTags();
-      // 兼容扁平和 attributes 结构
-      const tagList =
-        (tagsData?.data || []).map((tag: any) => {
-          const name = tag.name || tag.attributes?.name || "未命名";
-          const count = Array.isArray(tag.posts)
-            ? tag.posts.length
-            : tag.attributes?.posts?.data?.length || 0;
+      try {
+        const tagsData = await getTags(); // 不添加类型注解，让 TypeScript 推断
+
+        // 兼容扁平和 attributes 结构
+        const tagList: ProcessedTag[] = (tagsData?.data || []).map((tag) => {
+          // 处理标签名称
+          let name = "未命名";
+          if (typeof tag === "object" && tag !== null) {
+            if ("name" in tag && typeof tag.name === "string") {
+              name = tag.name;
+            } else if (
+              "attributes" in tag &&
+              tag.attributes &&
+              typeof tag.attributes === "object"
+            ) {
+              const attrs = tag.attributes as Record<string, unknown>;
+              if ("name" in attrs && typeof attrs.name === "string") {
+                name = attrs.name;
+              }
+            }
+          }
+
+          // 处理文章数量
+          let count = 0;
+          if (typeof tag === "object" && tag !== null) {
+            if ("posts" in tag && Array.isArray(tag.posts)) {
+              count = tag.posts.length;
+            } else if (
+              "attributes" in tag &&
+              tag.attributes &&
+              typeof tag.attributes === "object"
+            ) {
+              const attrs = tag.attributes as Record<string, unknown>;
+              if (
+                "posts" in attrs &&
+                attrs.posts &&
+                typeof attrs.posts === "object"
+              ) {
+                const posts = attrs.posts as Record<string, unknown>;
+                if ("data" in posts && Array.isArray(posts.data)) {
+                  count = posts.data.length;
+                }
+              }
+            }
+          }
+
           return { name, count };
-        }) || [];
-      setTags(tagList);
-      setVisibleTags(tagList.map((tag) => tag.name));
+        });
+
+        setTags(tagList);
+        setVisibleTags(tagList.map((tag) => tag.name));
+      } catch (error) {
+        console.error("获取标签失败:", error);
+        setTags([]);
+        setVisibleTags([]);
+      }
     }
     fetchTags();
 

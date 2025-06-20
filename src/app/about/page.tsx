@@ -1942,12 +1942,12 @@ export default function AboutPage() {
                           <div className="font-bold pl-2 pt-1">
                             主域名：
                             <a
-                              href="https://blog.wuyilin18.top/"
+                              href="https://wuyilin18.top/"
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-[#56CFE1] hover:underline"
                             >
-                              blog.wuyilin18.top
+                              wuyilin18.top
                             </a>{" "}
                           </div>
                           <div className="font-bold pl-2 pt-1">
@@ -2010,12 +2010,12 @@ export default function AboutPage() {
                           <div className="font-bold pl-2 pt-1">
                             目前主域{" "}
                             <a
-                              href="https://www.wuyilin18.top"
+                              href="https://wuyilin18.top"
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-[#56CFE1] hover:underline"
                             >
-                              www.wuyilin18.top
+                              wuyilin18.top
                             </a>{" "}
                             已劫持分流至缤纷云，在国内速度非常快{" "}
                             <span className="text-[#56CFE1]">

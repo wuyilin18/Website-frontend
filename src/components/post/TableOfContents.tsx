@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface HeadingData {
   id: string;
   text: string;
   level: number;
-  element?: HTMLElement;
+  element: HTMLElement; // 移除可选标记，因为在创建时总是会有element
   parentId?: string; // 父标题ID
   children?: string[]; // 子标题ID数组
 }
@@ -56,18 +56,6 @@ export const TableOfContents = ({ contentRef }: TableOfContentsProps) => {
     return hierarchyHeadings;
   };
 
-  // 获取标题的根父级ID
-  const getRootParentId = (
-    headingId: string,
-    headingsList: HeadingData[]
-  ): string => {
-    const heading = headingsList.find((h) => h.id === headingId);
-    if (!heading || !heading.parentId) {
-      return headingId;
-    }
-    return getRootParentId(heading.parentId, headingsList);
-  };
-
   // 获取所有需要展开的section
   const getExpandedSections = (
     activeHeadingId: string,
@@ -79,13 +67,13 @@ export const TableOfContents = ({ contentRef }: TableOfContentsProps) => {
     if (!activeHeading) return expanded;
 
     // 展开当前标题的路径上的所有父级
-    let current = activeHeading;
+    let current: HeadingData | undefined = activeHeading;
     while (current) {
       expanded.add(current.id);
       if (current.parentId) {
-        current = headingsList.find((h) => h.id === current.parentId);
+        current = headingsList.find((h) => h.id === current!.parentId);
       } else {
-        break;
+        current = undefined;
       }
     }
 
@@ -111,60 +99,64 @@ export const TableOfContents = ({ contentRef }: TableOfContentsProps) => {
     return parentExpanded;
   };
 
+  // 提取文章标题的函数
+  const extractHeadings = useCallback(() => {
+    // 只从文章内容容器中查找标题，排除留言板等其他区域
+    const articleContent = document.getElementById("article-content");
+    if (!articleContent) return;
+
+    const headingElements = articleContent.querySelectorAll(
+      "h1, h2, h3, h4, h5, h6"
+    );
+
+    const headingsList: HeadingData[] = Array.from(headingElements)
+      .map((heading, index) => {
+        const element = heading as HTMLElement;
+
+        // 排除留言板相关的标题
+        if (
+          element.textContent?.includes("留言板") ||
+          element.closest('[id*="comment"]') ||
+          element.closest(".twikoo") ||
+          element.closest('[class*="comment"]')
+        ) {
+          return null;
+        }
+
+        const text = element.textContent?.trim() || "";
+        if (text.length === 0) {
+          return null;
+        }
+
+        const id = element.id || `heading-${index}`;
+
+        // 如果没有id，为元素添加id
+        if (!element.id) {
+          element.id = id;
+        }
+
+        return {
+          id,
+          text,
+          level: parseInt(element.tagName.charAt(1)),
+          element, // element 现在总是存在的
+        };
+      })
+      .filter((heading): heading is HeadingData => {
+        return heading !== null;
+      });
+
+    // 建立层级关系
+    const hierarchyHeadings = buildHeadingHierarchy(headingsList);
+    setHeadings(hierarchyHeadings);
+
+    // 如果还没有激活的标题，设置第一个为激活状态
+    if (hierarchyHeadings.length > 0 && !activeId) {
+      setActiveId(hierarchyHeadings[0].id);
+    }
+  }, [activeId]);
+
   useEffect(() => {
-    // 提取文章标题 - 只从文章内容区域提取，排除留言板
-    const extractHeadings = () => {
-      // 只从文章内容容器中查找标题，排除留言板等其他区域
-      const articleContent = document.getElementById("article-content");
-      if (!articleContent) return;
-
-      const headingElements = articleContent.querySelectorAll(
-        "h1, h2, h3, h4, h5, h6"
-      );
-
-      const headingsList: HeadingData[] = Array.from(headingElements)
-        .map((heading, index) => {
-          const element = heading as HTMLElement;
-
-          // 排除留言板相关的标题
-          if (
-            element.textContent?.includes("留言板") ||
-            element.closest('[id*="comment"]') ||
-            element.closest(".twikoo") ||
-            element.closest('[class*="comment"]')
-          ) {
-            return null;
-          }
-
-          const id = element.id || `heading-${index}`;
-
-          // 如果没有id，为元素添加id
-          if (!element.id) {
-            element.id = id;
-          }
-
-          return {
-            id,
-            text: element.textContent?.trim() || "",
-            level: parseInt(element.tagName.charAt(1)),
-            element,
-          };
-        })
-        .filter(
-          (heading): heading is HeadingData =>
-            heading !== null && heading.text.length > 0
-        ); // 过滤掉空标题和null值
-
-      // 建立层级关系
-      const hierarchyHeadings = buildHeadingHierarchy(headingsList);
-      setHeadings(hierarchyHeadings);
-
-      // 如果还没有激活的标题，设置第一个为激活状态
-      if (hierarchyHeadings.length > 0 && !activeId) {
-        setActiveId(hierarchyHeadings[0].id);
-      }
-    };
-
     // 监听滚动事件，高亮当前可见的标题
     const handleScroll = () => {
       if (headings.length === 0) return;
@@ -177,8 +169,7 @@ export const TableOfContents = ({ contentRef }: TableOfContentsProps) => {
 
       for (let i = 0; i < headings.length; i++) {
         const heading = headings[i];
-        if (!heading.element) continue;
-
+        // 现在element总是存在的，不需要检查
         const rect = heading.element.getBoundingClientRect();
         const elementTop = rect.top + scrollTop;
 
@@ -218,7 +209,7 @@ export const TableOfContents = ({ contentRef }: TableOfContentsProps) => {
       window.removeEventListener("scroll", handleScroll);
       observer.disconnect();
     };
-  }, [activeId, headings.length]);
+  }, [extractHeadings, headings]); // 添加依赖
 
   // 当activeId改变时，更新展开状态
   useEffect(() => {
@@ -300,6 +291,19 @@ export const TableOfContents = ({ contentRef }: TableOfContentsProps) => {
     setExpandedSections(newExpanded);
   };
 
+  // 处理键盘事件
+  const handleKeyDown = (headingId: string, event: React.KeyboardEvent) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleSection(headingId, event as unknown as React.MouseEvent);
+    }
+  };
+
+  // 消除 contentRef 未使用的警告
+  if (contentRef) {
+    // contentRef 被引用但不实际使用
+  }
+
   if (headings.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden transition-all duration-500 p-8 md:p-12 relative backdrop-blur-sm bg-opacity-60 dark:bg-opacity-40 opacity-0 animate-scale-in sticky top-60">
@@ -375,19 +379,18 @@ export const TableOfContents = ({ contentRef }: TableOfContentsProps) => {
         ref={tocContainerRef}
         className="space-y-1 max-h-96 overflow-y-auto table-of-contents-scroll relative z-10"
         style={{
-          /* 隐藏滚动条的CSS */
-          scrollbarWidth: "none" /* Firefox */,
-          msOverflowStyle: "none" /* IE and Edge */,
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
         }}
       >
         {/* 添加CSS样式来隐藏webkit浏览器的滚动条 */}
-        <style jsx>{`
+        <style>{`
           .table-of-contents-scroll::-webkit-scrollbar {
             display: none;
           }
         `}</style>
 
-        {headings.map((heading, index) => {
+        {headings.map((heading) => {
           const isActive = activeId === heading.id;
           const isVisible = shouldShowHeading(heading);
           const hasChildren = heading.children && heading.children.length > 0;
@@ -440,12 +443,7 @@ export const TableOfContents = ({ contentRef }: TableOfContentsProps) => {
                       }`}
                       role="button"
                       tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          toggleSection(heading.id, e);
-                        }
-                      }}
+                      onKeyDown={(e) => handleKeyDown(heading.id, e)}
                       aria-label={`${isExpanded ? "折叠" : "展开"}${
                         heading.text
                       }`}
@@ -510,11 +508,7 @@ export const TableOfContents = ({ contentRef }: TableOfContentsProps) => {
                           y2="0%"
                         >
                           <stop offset="0%" stopColor="#56CFE1" />
-                          <stop
-                            offset="100%"
-                            stopColor="#9D4EDD"
-                            className="dark:stop-color-[#FF9470]"
-                          />
+                          <stop offset="100%" stopColor="#9D4EDD" />
                         </linearGradient>
                       </defs>
                       <path

@@ -77,6 +77,9 @@ const FallingText: React.FC<FallingTextProps> = ({
 
     if (!containerRef.current || !canvasContainerRef.current) return;
 
+    // 修复：在 effect 内部保存 canvasContainerRef.current 的引用
+    const currentCanvasContainer = canvasContainerRef.current;
+
     const containerRect = containerRef.current.getBoundingClientRect();
     const width = containerRect.width;
     const height = containerRect.height;
@@ -87,7 +90,7 @@ const FallingText: React.FC<FallingTextProps> = ({
     engine.world.gravity.y = gravity;
 
     const render = Render.create({
-      element: canvasContainerRef.current,
+      element: currentCanvasContainer, // 使用保存的引用
       engine,
       options: {
         width,
@@ -202,8 +205,9 @@ const FallingText: React.FC<FallingTextProps> = ({
     return () => {
       Render.stop(render);
       Runner.stop(runner);
-      if (render.canvas && canvasContainerRef.current) {
-        canvasContainerRef.current.removeChild(render.canvas);
+      // 修复：在清理函数中使用保存的引用
+      if (render.canvas && currentCanvasContainer) {
+        currentCanvasContainer.removeChild(render.canvas);
       }
       World.clear(engine.world, false);
       Engine.clear(engine);

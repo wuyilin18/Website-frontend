@@ -268,7 +268,7 @@ export const FullMusicPlayer: React.FC = () => {
         });
       }
     }
-  }, [currentSong]);
+  }, [currentSong, isPlaying]); // 修复：添加 isPlaying 到依赖数组
 
   // 歌曲结束时处理
   const handleSongEnd = () => {

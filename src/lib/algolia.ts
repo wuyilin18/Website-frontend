@@ -5,12 +5,15 @@ const ALGOLIA_APP_ID = "4KSBT528TD";
 const ALGOLIA_SEARCH_API_KEY = "4c5827731a6ad8b7bc3063c61916c372";
 const ALGOLIA_INDEX_NAME = "algolia_podcast_sample_dataset";
 
-// 初始化客户端，并只导出需要使用的index
-const { index } = createAlgoliaClient(
+// 初始化客户端
+const algoliaClient = createAlgoliaClient(
   ALGOLIA_APP_ID,
   ALGOLIA_SEARCH_API_KEY,
   ALGOLIA_INDEX_NAME
 );
+
+// 只导出需要使用的index
+const index = algoliaClient ? algoliaClient.index : null;
 
 export interface SearchResult {
   objectID: string;
@@ -23,7 +26,7 @@ export interface SearchResult {
 }
 
 export async function searchPosts(query: string): Promise<SearchResult[]> {
-  if (!query || query.trim() === "") {
+  if (!index || !query || query.trim() === "") {
     return [];
   }
 

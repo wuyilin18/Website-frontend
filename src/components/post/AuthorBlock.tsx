@@ -1,13 +1,14 @@
 "use client";
 import { FiGithub } from "react-icons/fi";
 import { SiBilibili } from "react-icons/si";
-
+import Image from "next/image";
 import Link from "next/link";
+
 export const AuthorBlock = () => {
   return (
     <div className="relative rounded-2xl shadow-lg overflow-hidden transition-all duration-500 sticky top-32 author-block-bg">
       {/* 添加CSS样式 */}
-      <style jsx>{`
+      <style>{`
         .author-block-bg {
           background-image: linear-gradient(
             120deg,
@@ -46,11 +47,13 @@ export const AuthorBlock = () => {
 
             {/* 主头像 */}
             <div className="relative w-20 h-20 rounded-full bg-white p-1 shadow-lg">
-              <div className="w-full h-full rounded-full overflow-hidden">
-                <img
+              <div className="relative w-full h-full rounded-full overflow-hidden">
+                <Image
                   src="https://cdn.wuyilin18.top/img/avatar.png"
                   alt="十八加十八"
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                 />
               </div>
             </div>

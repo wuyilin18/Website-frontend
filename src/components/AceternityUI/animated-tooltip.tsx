@@ -1,5 +1,5 @@
 "use client";
-
+import Image from "next/image";
 import React, { useState } from "react";
 import {
   motion,
@@ -82,7 +82,7 @@ export const AnimatedTooltip = ({
 
           {item.link ? (
             <Link href={item.link} target="_blank" rel="noopener noreferrer">
-              <img
+              <Image
                 onMouseMove={handleMouseMove}
                 height={100}
                 width={100}
@@ -92,7 +92,7 @@ export const AnimatedTooltip = ({
               />
             </Link>
           ) : (
-            <img
+            <Image
               onMouseMove={handleMouseMove}
               height={100}
               width={100}
